@@ -1,6 +1,6 @@
 # Effect Temporal IO
 
-This repository contains an Effect v4 / effect-smol integration for
+This repository contains an Effect v4 integration for
 Temporal. The first package is `@effect-temporal/workflow`, which provides
 Effect-friendly wrappers around Temporal connections, workflow clients,
 workers, and the protocol primitives needed to map

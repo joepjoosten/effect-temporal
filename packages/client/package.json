@@ -27,7 +27,7 @@
     "@temporalio/client": "^1.17.2",
     "@temporalio/common": "^1.17.2",
     "@temporalio/proto": "^1.17.2",
-    "effect": "4.0.0-beta.64",
+    "effect": "4.0.0-beta.99",
     "nexus-rpc": "^0.0.2"
   },
   "effect": {

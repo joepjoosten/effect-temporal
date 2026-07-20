@@ -83,8 +83,7 @@ export const externalOutcome = DurableDeferred.make("externalOutcome", {
   error: Schema.String
 })
 
-export const reconcileCheckout = Workflow.make({
-  name: "ReconcileCheckout",
+export const reconcileCheckout = Workflow.make("ReconcileCheckout", {
   payload: {
     orderId: Schema.String
   },
@@ -92,8 +91,7 @@ export const reconcileCheckout = Workflow.make({
   idempotencyKey: ({ orderId }) => orderId
 })
 
-export const checkoutWorkflow = Workflow.make({
-  name: "CheckoutWorkflow",
+export const checkoutWorkflow = Workflow.make("CheckoutWorkflow", {
   payload: checkoutPayload,
   success: checkoutSuccess,
   error: checkoutError,

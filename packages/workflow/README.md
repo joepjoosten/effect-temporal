@@ -1,6 +1,6 @@
 # `@effect-temporal/workflow`
 
-Effect v4 / effect-smol integration for Temporal.
+Effect v4 integration for Temporal.
 
 ## Current Scope
 

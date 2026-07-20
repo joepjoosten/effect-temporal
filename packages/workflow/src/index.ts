@@ -1,9 +1,13 @@
 /**
+ * Re-exported Temporal workflow client service.
+ *
  * @since 1.0.0
  */
 export * as TemporalClient from "./TemporalClient.js"
 
 /**
+ * Re-exported Temporal client connection service.
+ *
  * @since 1.0.0
  */
 export * as TemporalConnection from "./TemporalConnection.js"
