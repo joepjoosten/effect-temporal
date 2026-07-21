@@ -53,6 +53,9 @@
     "vitest": "^3.2.0"
   },
   "pnpm": {
-    "patchedDependencies": {}
+    "patchedDependencies": {},
+    "overrides": {
+      "human-id": "4.1.0"
+    }
   }
 }

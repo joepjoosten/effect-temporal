@@ -4,6 +4,9 @@ settings:
   autoInstallPeers: true
   excludeLinksFromLockfile: false
 
+overrides:
+  human-id: 4.1.0
+
 importers:
 
   .:
@@ -2249,8 +2252,8 @@ packages:
   hosted-git-info@2.8.9:
     resolution: {integrity: sha512-mxIDAb9Lsm6DoOJ7xH+5+X4y1LU/4Hi50L9C5sIswK3JzULS4bwk1FvjdBgvYR4bzT4tuUQiC15FE2f5HbLvYw==}
 
-  human-id@4.2.0:
-    resolution: {integrity: sha512-K3GbkIWqyvvlpfhBPlbEvD97TtqBpAYA4kt+cn2lD2x2HuohzZCibcA2nOlnJT6exqvJLggoB5nv2dNf192nEA==}
+  human-id@4.1.0:
+    resolution: {integrity: sha512-WYeWmHXGo1ZPGZuy7I2c+sgM83GvlQR1jrF1zLX6fID9JEVGkZgZe8PHj5HacWC7d9V0rNc4iRVhb9QmO55CUQ==}
     hasBin: true
 
   hyperdyperid@1.2.0:
@@ -3776,7 +3779,7 @@ snapshots:
     dependencies:
       '@changesets/types': 6.1.0
       fs-extra: 7.0.1
-      human-id: 4.2.0
+      human-id: 4.1.0
       prettier: 2.8.8
 
   '@dprint/darwin-arm64@0.54.0':
@@ -5797,7 +5800,7 @@ snapshots:
 
   hosted-git-info@2.8.9: {}
 
-  human-id@4.2.0: {}
+  human-id@4.1.0: {}
 
   hyperdyperid@1.2.0: {}
 
