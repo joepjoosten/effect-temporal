@@ -6,7 +6,7 @@
   "description": "Effect wrapper for the Temporal TypeScript SDK client",
   "repository": {
     "type": "git",
-    "url": "<PLACEHOLDER>",
+    "url": "git+https://github.com/joepjoosten/effect-temporal.git",
     "directory": "packages/client"
   },
   "publishConfig": {

@@ -6,7 +6,7 @@
   "description": "Temporal-backed workflow integration for Effect workflows",
   "repository": {
     "type": "git",
-    "url": "<PLACEHOLDER>",
+    "url": "git+https://github.com/joepjoosten/effect-temporal.git",
     "directory": "packages/workflow"
   },
   "publishConfig": {
