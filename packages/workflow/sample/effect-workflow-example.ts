@@ -11,9 +11,9 @@ import * as DurableDeferred from "effect/unstable/workflow/DurableDeferred"
 import * as Workflow from "effect/unstable/workflow/Workflow"
 import * as WorkflowEngine from "effect/unstable/workflow/WorkflowEngine"
 
-export class ReserveFailed extends Schema.TaggedErrorClass<ReserveFailed>()("ReserveFailed", {}) {}
-export class ApprovalDenied extends Schema.TaggedErrorClass<ApprovalDenied>()("ApprovalDenied", {}) {}
-export class PaymentDeclined extends Schema.TaggedErrorClass<PaymentDeclined>()("PaymentDeclined", {}) {}
+export class ReserveFailed extends Schema.TaggedError<ReserveFailed>()("ReserveFailed", {}) {}
+export class ApprovalDenied extends Schema.TaggedError<ApprovalDenied>()("ApprovalDenied", {}) {}
+export class PaymentDeclined extends Schema.TaggedError<PaymentDeclined>()("PaymentDeclined", {}) {}
 
 export const checkoutPayload = Schema.Struct({
   orderId: Schema.String,
