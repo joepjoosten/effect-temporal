@@ -1,2 +1,5 @@
 packages:
   - packages/*
+
+overrides:
+  human-id: 4.1.0
