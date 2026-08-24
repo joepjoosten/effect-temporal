@@ -1,5 +1,11 @@
 # @effect-temporal/client
 
+## 0.1.1
+
+### Patch Changes
+
+- [#13](https://github.com/joepjoosten/effect-temporal/pull/13) [`102b696`](https://github.com/joepjoosten/effect-temporal/commit/102b6965a6126cdbb146c5236aa2408360916dba) Thanks [@joepjoosten](https://github.com/joepjoosten)! - Update the packages to Effect 4.0.0-rc.111 and migrate the test workspace to the Vitest 4 projects configuration.
+
 ## 0.1.0
 
 ### Minor Changes
