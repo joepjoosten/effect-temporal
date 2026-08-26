@@ -84,3 +84,30 @@ await Effect.runPromise(
 The codec is AWS-independent. AWS KMS or another key store should live in the
 `TemporalCodecKeyProvider` layer and return the plaintext data key as an Effect
 when encoding or decoding payloads.
+
+Low-level visibility and history access is available on the workflow client for
+tooling that needs raw pagination control or decoded history payloads:
+
+```ts
+const client = yield * TemporalClient.TemporalClient
+
+// Page-by-page listing with progress reporting and an item limit
+const workflows = client.workflow.listPaged({
+  query: "ExecutionStatus=\"Failed\"",
+  pageSize: 100,
+  limit: 1000,
+  onPage: (progress) => Effect.log(`page ${progress.page}: ${progress.totalEmittedItems} workflows`)
+})
+
+// Decoded start input and raw history events
+const input = yield * client.workflow.startInput(workflowId, runId)
+const events = yield * client.workflow.fetchHistoryEvents(workflowId, runId)
+
+// Decode payloads or failures found in raw history events
+const args = yield * client.workflow.decodePayloads(
+  events[0]?.activityTaskScheduledEventAttributes?.input?.payloads
+)
+```
+
+All of these use the client's loaded data converter, so encrypted payloads are
+decrypted when a payload codec is configured.
