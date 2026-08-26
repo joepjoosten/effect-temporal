@@ -1,5 +1,12 @@
 # @effect-temporal/workflow
 
+## 0.1.2
+
+### Patch Changes
+
+- Updated dependencies [[`0c0b8ec`](https://github.com/joepjoosten/effect-temporal/commit/0c0b8ec1bc7f3f5cd3ce9ceae788b05879288d60)]:
+  - @effect-temporal/client@0.2.0
+
 ## 0.1.1
 
 ### Patch Changes
