@@ -22,9 +22,16 @@ import {
   type WorkflowStartOptions,
   type WorkflowUpdateOptions
 } from "@temporalio/client"
+import { executionInfoFromRaw } from "@temporalio/client/lib/helpers.js"
+import {
+  decodeArrayFromPayloads,
+  decodeOptionalFailureToOptionalError
+} from "@temporalio/common/lib/internal-non-workflow/codec-helpers.js"
+import type { temporal } from "@temporalio/proto"
 import * as Context from "effect/Context"
 import * as Effect from "effect/Effect"
 import * as Layer from "effect/Layer"
+import * as Option from "effect/Option"
 import * as Stream from "effect/Stream"
 import * as TemporalConnection from "./TemporalConnection.js"
 import * as TemporalDataConverter from "./TemporalDataConverter.js"
@@ -64,6 +71,85 @@ export type WorkflowStartOptionsWithArgs<T extends Workflow, Args extends Tempor
   & {
     readonly args?: TemporalSchema.Encoded<Args> | undefined
   }
+
+/**
+ * Re-exported from `@temporalio/client` so consumers do not need a direct
+ * dependency on the Temporal SDK for common workflow types and errors.
+ *
+ * @since 1.0.0
+ * @category Re-exports
+ */
+export { WorkflowFailedError } from "@temporalio/client"
+
+/**
+ * Re-exported from `@temporalio/client`.
+ *
+ * @since 1.0.0
+ * @category Re-exports
+ */
+export type { ListOptions, WorkflowExecutionInfo } from "@temporalio/client"
+
+/**
+ * A raw Temporal history event as returned by the workflow service.
+ *
+ * @since 1.0.0
+ * @category Models
+ */
+export type HistoryEvent = temporal.api.history.v1.IHistoryEvent
+
+/**
+ * A raw Temporal payload as it appears in history events.
+ *
+ * @since 1.0.0
+ * @category Models
+ */
+export type RawPayload = temporal.api.common.v1.IPayload
+
+/**
+ * A raw Temporal failure as it appears in history events.
+ *
+ * @since 1.0.0
+ * @category Models
+ */
+export type RawFailure = temporal.api.failure.v1.IFailure
+
+/**
+ * Progress information reported after each page fetched by `listPaged`.
+ *
+ * @since 1.0.0
+ * @category Models
+ */
+export interface ListPagedProgress {
+  readonly page: number
+  readonly requestedPageSize: number
+  readonly receivedItems: number
+  readonly emittedItems: number
+  readonly totalEmittedItems: number
+  readonly hasNextPage: boolean
+}
+
+/**
+ * Options for `listPaged`.
+ *
+ * @since 1.0.0
+ * @category Models
+ */
+export interface ListPagedOptions {
+  readonly query?: string | undefined
+  readonly pageSize?: number | undefined
+  readonly limit?: number | undefined
+  readonly onPage?: ((progress: ListPagedProgress) => Effect.Effect<void>) | undefined
+}
+
+/**
+ * Options for `fetchHistoryEvents`.
+ *
+ * @since 1.0.0
+ * @category Models
+ */
+export interface FetchHistoryEventsOptions {
+  readonly pageSize?: number | undefined
+}
 
 /**
  * @since 1.0.0
@@ -128,6 +214,24 @@ export interface TemporalWorkflowClient {
   readonly list: (
     options?: ListOptions | undefined
   ) => Stream.Stream<WorkflowExecutionInfo, TemporalClientError>
+  readonly listPaged: (
+    options?: ListPagedOptions | undefined
+  ) => Stream.Stream<WorkflowExecutionInfo, TemporalClientError>
+  readonly fetchHistoryEvents: (
+    workflowId: string,
+    runId?: string | undefined,
+    options?: FetchHistoryEventsOptions | undefined
+  ) => Effect.Effect<ReadonlyArray<HistoryEvent>, TemporalClientError>
+  readonly startInput: (
+    workflowId: string,
+    runId?: string | undefined
+  ) => Effect.Effect<ReadonlyArray<unknown>, TemporalClientError>
+  readonly decodePayloads: (
+    payloads: ReadonlyArray<RawPayload> | null | undefined
+  ) => Effect.Effect<ReadonlyArray<unknown>, TemporalClientError>
+  readonly decodeFailure: (
+    failure: RawFailure | null | undefined
+  ) => Effect.Effect<Error | undefined, TemporalClientError>
   readonly listHistories: (
     options?: ListOptions | undefined,
     intoHistoriesOptions?: IntoHistoriesOptions | undefined
@@ -161,6 +265,128 @@ export interface TemporalWorkflowClient {
 export const TemporalWorkflowClient = Context.Service<TemporalWorkflowClient>(
   "@effect-temporal/client/TemporalWorkflowClient"
 )
+
+const DEFAULT_LIST_PAGE_SIZE = 1000
+
+interface ListPagedState {
+  readonly nextPageToken: Uint8Array
+  readonly remaining: number | undefined
+  readonly page: number
+  readonly emitted: number
+}
+
+const hasNextPageToken = (nextPageToken: Uint8Array | null | undefined): nextPageToken is Uint8Array =>
+  nextPageToken !== undefined && nextPageToken !== null && nextPageToken.length > 0
+
+const listPaged = (
+  client: WorkflowClient,
+  options: ListPagedOptions = {}
+): Stream.Stream<WorkflowExecutionInfo, TemporalClientError> => {
+  const pageSize = options.pageSize ?? DEFAULT_LIST_PAGE_SIZE
+  const initialState: ListPagedState = {
+    nextPageToken: new Uint8Array(),
+    remaining: options.limit !== undefined && options.limit > 0 ? options.limit : undefined,
+    page: 1,
+    emitted: 0
+  }
+
+  return Stream.paginate(initialState, (state) => {
+    if (state.remaining !== undefined && state.remaining <= 0) {
+      return Effect.succeed([[], Option.none<ListPagedState>()] as const)
+    }
+
+    const requestedPageSize = state.remaining === undefined ? pageSize : Math.min(pageSize, state.remaining)
+
+    return tryClientPromise("WorkflowClient.listPaged", () =>
+      client.workflowService.listWorkflowExecutions({
+        namespace: client.options.namespace,
+        query: options.query ?? null,
+        nextPageToken: state.nextPageToken,
+        pageSize: requestedPageSize
+      })).pipe(
+        Effect.flatMap((response) => {
+          const executions = response.executions ?? []
+          const emittedItems = state.remaining === undefined ? executions : executions.slice(0, state.remaining)
+          const remaining = state.remaining === undefined ? undefined : state.remaining - emittedItems.length
+          const totalEmittedItems = state.emitted + emittedItems.length
+          const nextPageToken = response.nextPageToken
+          const hasNextPage = hasNextPageToken(nextPageToken) && (remaining === undefined || remaining > 0)
+          const nextState = hasNextPage
+            ? Option.some<ListPagedState>({
+              nextPageToken,
+              remaining,
+              page: state.page + 1,
+              emitted: totalEmittedItems
+            })
+            : Option.none<ListPagedState>()
+
+          return (options.onPage?.({
+            page: state.page,
+            requestedPageSize,
+            receivedItems: executions.length,
+            emittedItems: emittedItems.length,
+            totalEmittedItems,
+            hasNextPage
+          }) ?? Effect.void).pipe(
+            Effect.as([emittedItems, nextState] as const)
+          )
+        })
+      )
+  }).pipe(
+    Stream.mapEffect((raw) =>
+      tryClientPromise(
+        "WorkflowClient.listPaged.executionInfo",
+        () => executionInfoFromRaw(raw, client.options.loadedDataConverter, raw)
+      )
+    )
+  )
+}
+
+const fetchHistoryEvents = async (
+  client: WorkflowClient,
+  workflowId: string,
+  runId: string | undefined,
+  options: FetchHistoryEventsOptions | undefined
+): Promise<ReadonlyArray<HistoryEvent>> => {
+  let nextPageToken: Uint8Array | undefined
+  const events: Array<HistoryEvent> = []
+
+  do {
+    const response = await client.workflowService.getWorkflowExecutionHistory({
+      namespace: client.options.namespace,
+      execution: { workflowId, runId: runId ?? null },
+      maximumPageSize: options?.pageSize ?? null,
+      nextPageToken: nextPageToken ?? null
+    })
+
+    for (const event of response.history?.events ?? []) {
+      events.push(event)
+    }
+    nextPageToken = hasNextPageToken(response.nextPageToken) ? response.nextPageToken : undefined
+  } while (nextPageToken)
+
+  return events
+}
+
+const startInput = async (
+  client: WorkflowClient,
+  workflowId: string,
+  runId: string | undefined
+): Promise<ReadonlyArray<unknown>> => {
+  const response = await client.workflowService.getWorkflowExecutionHistory({
+    namespace: client.options.namespace,
+    execution: { workflowId, runId: runId ?? null },
+    maximumPageSize: 1
+  })
+  const attributes = response.history?.events?.find((event) => event.workflowExecutionStartedEventAttributes)
+    ?.workflowExecutionStartedEventAttributes
+
+  if (!attributes) {
+    throw new Error("WorkflowExecutionStarted event was not found")
+  }
+
+  return await decodeArrayFromPayloads(client.options.loadedDataConverter, attributes.input?.payloads)
+}
 
 /**
  * @since 1.0.0
@@ -206,6 +432,24 @@ export const fromUnsafe = (client: WorkflowClient): TemporalWorkflowClient =>
     getHandle: (workflowId, runId, options) =>
       TemporalWorkflowHandle.fromUnsafe(client.getHandle(workflowId, runId, options)),
     list: (options) => streamClientIterable("WorkflowClient.list", client.list(options)),
+    listPaged: (options) => listPaged(client, options),
+    fetchHistoryEvents: (workflowId, runId, options) =>
+      tryClientPromise(
+        "WorkflowClient.fetchHistoryEvents",
+        () => fetchHistoryEvents(client, workflowId, runId, options)
+      ),
+    startInput: (workflowId, runId) =>
+      tryClientPromise("WorkflowClient.startInput", () => startInput(client, workflowId, runId)),
+    decodePayloads: (payloads) =>
+      tryClientPromise(
+        "WorkflowClient.decodePayloads",
+        () => decodeArrayFromPayloads(client.options.loadedDataConverter, payloads == null ? payloads : [...payloads])
+      ),
+    decodeFailure: (failure) =>
+      tryClientPromise(
+        "WorkflowClient.decodeFailure",
+        () => decodeOptionalFailureToOptionalError(client.options.loadedDataConverter, failure)
+      ),
     listHistories: (options, intoHistoriesOptions) =>
       streamClientIterable(
         "WorkflowClient.list.intoHistories",
@@ -213,15 +457,18 @@ export const fromUnsafe = (client: WorkflowClient): TemporalWorkflowClient =>
       ),
     count: (query) => tryClientPromise("WorkflowClient.count", () => client.count(query)),
     startUpdateWithStart: (definition, options) =>
-      tryClientPromise("WorkflowClient.startUpdateWithStart", () =>
-        client.startUpdateWithStart(definition, options as any)).pipe(
-          Effect.map(TemporalWorkflowHandle.fromUnsafeUpdateHandle)
-        ),
+      tryClientPromise(
+        "WorkflowClient.startUpdateWithStart",
+        () => client.startUpdateWithStart(definition, options as any)
+      ).pipe(
+        Effect.map(TemporalWorkflowHandle.fromUnsafeUpdateHandle)
+      ),
     executeUpdateWithStart: (definition, options) =>
-      tryClientPromise("WorkflowClient.executeUpdateWithStart", () =>
-        client.executeUpdateWithStart(definition, options as any)),
-    withStartWorkflowOperation: (workflow, options) =>
-      new WithStartWorkflowOperation(workflow, options)
+      tryClientPromise(
+        "WorkflowClient.executeUpdateWithStart",
+        () => client.executeUpdateWithStart(definition, options as any)
+      ),
+    withStartWorkflowOperation: (workflow, options) => new WithStartWorkflowOperation(workflow, options)
   })
 
 /**
