@@ -1,5 +1,56 @@
 # @effect-temporal/workflow
 
+## 0.1.6
+
+### Patch Changes
+
+- [#48](https://github.com/joepjoosten/effect-temporal/pull/48) [`89b43db`](https://github.com/joepjoosten/effect-temporal/commit/89b43db72a530eb3f7dc1a24351ee5de06cd7277) Thanks [@joepjoosten](https://github.com/joepjoosten)! - `TemporalLint`: an ESLint plugin (flat-config compatible) enforcing
+  workflow-sandbox safety on workflow bundle files, with a `recommended`
+  preset. Rules: `no-module-level-mutable` (mutable module-scope state breaks
+  V8 context reuse and replay), `no-mixed-halves` (no client/worker-side or
+  Node imports in bundle files; forbidden patterns configurable),
+  `prefer-typed-activity` (flag direct `proxyActivities` usage), and
+  `zero-arity-effect-promise` (thunks passed to `Effect.promise` /
+  `Effect.tryPromise` must take no parameters).
+
+- [#45](https://github.com/joepjoosten/effect-temporal/pull/45) [`77edd20`](https://github.com/joepjoosten/effect-temporal/commit/77edd20a137852388e3c9816eefa26432692ebe6) Thanks [@joepjoosten](https://github.com/joepjoosten)! - `TemporalTypedActivity`: schema-typed activities with explicit payloads and
+  per-activity Temporal options. Define once with
+  `TemporalTypedActivity.make(name, { payload, success, error, options })`;
+  the workflow body calls with `TemporalTypedActivity.call(activity, payload)`
+  — payloads are encoded across the worker boundary and the schema'd failure
+  is decoded into the Effect error channel — and the worker binds
+  implementations with `handle` + `implement` (with a `provide` seam for
+  Effect services). Typed failures complete the Temporal activity without
+  retries; defects fail it so the activity's retry policy applies. Completed
+  exits are memoized per call position, so resumed passes of the body replay
+  results instead of re-scheduling. Options support timeouts, retry policies,
+  and local activities.
+
+- [#49](https://github.com/joepjoosten/effect-temporal/pull/49) [`b7d7ce8`](https://github.com/joepjoosten/effect-temporal/commit/b7d7ce80313e6cbfd79d037f7690bb0032a855ba) Thanks [@joepjoosten](https://github.com/joepjoosten)! - First-class typed Nexus support in both directions:
+
+  - `TemporalNexusOperation.make(service, operation, { payload, success, error })`
+    defines a schema-typed Nexus operation shared by handler and callers;
+    workflow-side `call` encodes the payload, runs the operation in its own
+    cancellation scope, and decodes the backing workflow's typed failure into
+    the Effect error channel.
+  - `TemporalNexusService.workflowRunOperation(operation, workflow)` builds the
+    worker `nexusServices` handler backing the operation with an Effect
+    workflow — requests start it under its deterministic execution id, with
+    `USE_EXISTING` conflict semantics for idempotent duplicate requests.
+  - The client package's Nexus modules are now typed against the real
+    `@temporalio/client` Nexus surface (SDK 1.23) instead of structural
+    `unknown` shapes, and construct `NexusClient` directly.
+
+- [#47](https://github.com/joepjoosten/effect-temporal/pull/47) [`3fdb54e`](https://github.com/joepjoosten/effect-temporal/commit/3fdb54ec256499c597f6b3ff50d60819cba64ede) Thanks [@joepjoosten](https://github.com/joepjoosten)! - `TemporalVersioning`: patch-based versioning for evolving workflow code
+  while old executions are still replaying. `patched` / `deprecatePatch` wrap
+  Temporal's markers as Effects, and `match` runs version chains: declare an
+  ordered list of `{ id, run }` branches (plus an optional `legacy` branch for
+  histories predating every version) — a new execution records the newest
+  marker and takes its branch, a replaying execution follows the branch its
+  history recorded.
+- Updated dependencies [[`b7d7ce8`](https://github.com/joepjoosten/effect-temporal/commit/b7d7ce80313e6cbfd79d037f7690bb0032a855ba)]:
+  - @effect-temporal/client@0.2.2
+
 ## 0.1.5
 
 ### Patch Changes

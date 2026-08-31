@@ -1,6 +1,6 @@
 {
   "name": "@effect-temporal/client",
-  "version": "0.2.1",
+  "version": "0.2.2",
   "type": "module",
   "license": "MIT",
   "description": "Effect wrapper for the Temporal TypeScript SDK client",
