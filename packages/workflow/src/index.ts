@@ -13,6 +13,23 @@ export * as TemporalClient from "./TemporalClient.js"
 export * as TemporalConnection from "./TemporalConnection.js"
 
 /**
+ * Continue-as-new support for long-lived Effect workflows.
+ *
+ * Entity-style workflows accumulate history indefinitely; Temporal's answer
+ * is continue-as-new: close the current run and start a fresh one under the
+ * same workflow id with new arguments. `continueAsNew` encodes the new
+ * payload with the workflow's schema and triggers Temporal's continuation —
+ * the effect never returns. The runtime lets the continuation marker escape
+ * the Effect runtime untouched, and clients awaiting the execution follow the
+ * run chain to the final result.
+ *
+ * This module is sandbox-safe.
+ *
+ * @since 1.0.0
+ */
+export * as TemporalContinueAsNew from "./TemporalContinueAsNew.js"
+
+/**
  * Durable, schema-typed inbound message mailboxes for entity workflows.
  *
  * A mailbox is a named channel of repeated inbound messages. Messages arrive

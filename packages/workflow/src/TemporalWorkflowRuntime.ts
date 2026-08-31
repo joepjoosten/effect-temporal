@@ -7,6 +7,7 @@ import { WorkflowExecutionAlreadyStartedError } from "@temporalio/common"
 import {
   CancellationScope,
   condition,
+  ContinueAsNew,
   defineQuery,
   defineSignal,
   executeChild,
@@ -17,6 +18,7 @@ import {
   startChild,
   workflowInfo
 } from "@temporalio/workflow"
+import * as Cause from "effect/Cause"
 import * as Context from "effect/Context"
 import * as Duration from "effect/Duration"
 import * as Effect from "effect/Effect"
@@ -347,6 +349,15 @@ const unsupported = (message: string): Effect.Effect<never, never> => Effect.die
 const isWorkflowExecutionAlreadyStartedError = (u: unknown): u is WorkflowExecutionAlreadyStartedError =>
   u instanceof WorkflowExecutionAlreadyStartedError
 
+const findContinueAsNew = (cause: Cause.Cause<unknown>): ContinueAsNew | undefined => {
+  for (const reason of cause.reasons) {
+    if (Cause.isDieReason(reason) && reason.defect instanceof ContinueAsNew) {
+      return reason.defect
+    }
+  }
+  return undefined
+}
+
 const makeActivityCaller = (
   activityProxy: TemporalActivityProxy | undefined
 ): Record<string, (input: TemporalActivityInvocation) => Promise<Workflow.ResultEncoded<unknown, unknown>>> =>
@@ -595,6 +606,14 @@ export const makeWorkflow = <Payload, Success, Error, R>(
           : new Workflow.Complete({ exit: Exit.failCause(exit.cause) }) as Workflow.Result<Success, Error>
 
         if (result._tag === "Complete") {
+          if (result.exit._tag === "Failure") {
+            // A continue-as-new marker is not a completion: let it escape
+            // untouched so Temporal continues the run chain.
+            const marker = findContinueAsNew(result.exit.cause)
+            if (marker !== undefined) {
+              throw marker
+            }
+          }
           state.status = "completed"
           state.result = codecs.encodeResult(result)
           if (cancelledFailure === undefined && result.exit._tag === "Success") {
