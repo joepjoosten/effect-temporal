@@ -93,6 +93,40 @@ export * as TemporalError from "./TemporalError.js"
 export * as TemporalLint from "./TemporalLint.js"
 
 /**
+ * Schema-typed Nexus operations backed by Effect workflows.
+ *
+ * A Nexus operation definition pairs a service/operation name with payload,
+ * success, and failure schemas, shared by the handler worker and every
+ * caller. The workflow-side `call` encodes the payload, invokes the
+ * operation through Temporal's Nexus client in its own cancellation scope,
+ * and decodes the result — the target workflow's schema'd failure lands in
+ * the Effect error channel. The worker-side handler lives in
+ * `TemporalNexusService`.
+ *
+ * This module is sandbox-safe.
+ *
+ * @since 1.0.0
+ */
+export * as TemporalNexusOperation from "./TemporalNexusOperation.js"
+
+/**
+ * Worker-side Nexus operation handlers backed by Effect workflows.
+ *
+ * `workflowRunOperation` turns a `TemporalNexusOperation` definition plus an
+ * Effect workflow into a Nexus service handler for the worker's
+ * `nexusServices` option: incoming requests are schema-decoded, the backing
+ * workflow starts under its deterministic execution id (attaching to an
+ * existing open run on duplicate requests), and its result — success or
+ * typed failure — flows back to the caller as the operation outcome.
+ *
+ * This module uses `@temporalio/nexus` and must not be imported from a
+ * workflow bundle.
+ *
+ * @since 1.0.0
+ */
+export * as TemporalNexusService from "./TemporalNexusService.js"
+
+/**
  * Effect runtime configuration for the Temporal workflow sandbox.
  *
  * The polyfill import below must stay first so the globals are installed

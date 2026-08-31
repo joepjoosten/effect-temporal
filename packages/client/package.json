@@ -28,7 +28,7 @@
     "@temporalio/common": "^1.23.0",
     "@temporalio/proto": "^1.23.0",
     "effect": "4.0.0-rc.112",
-    "nexus-rpc": "^0.0.2"
+    "nexus-rpc": "^0.0.3"
   },
   "effect": {
     "generateExports": {

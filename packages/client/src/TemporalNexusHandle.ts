@@ -1,40 +1,32 @@
 /**
- * Effect wrappers for Temporal Nexus operation handles.
- *
- * The published Temporal SDK may not expose Nexus yet, while local SDK builds
- * can. These types are structural so the wrapper can support both.
+ * Effect wrappers for Temporal Nexus operation handles, typed against the
+ * real `@temporalio/client` Nexus surface.
  *
  * @since 1.0.0
  */
+import type {
+  DescribeNexusOperationOptions,
+  NexusOperationExecutionDescription,
+  NexusOperationHandle
+} from "@temporalio/client"
 import type * as Effect from "effect/Effect"
 import { type TemporalClientError, tryClientPromise } from "./TemporalError.js"
 
 /**
+ * Re-exported from `@temporalio/client`.
+ *
  * @since 1.0.0
- * @category Models
+ * @category Re-exports
  */
-export type DescribeNexusOperationOptions = Record<string, unknown>
+export type { DescribeNexusOperationOptions, NexusOperationExecutionDescription } from "@temporalio/client"
 
 /**
+ * The raw SDK handle for a standalone Nexus operation.
+ *
  * @since 1.0.0
  * @category Models
  */
-export type NexusOperationExecutionDescription = unknown
-
-/**
- * @since 1.0.0
- * @category Models
- */
-export interface UnsafeNexusOperationHandle<O = unknown> {
-  readonly operationId: string
-  readonly runId?: string | undefined
-  readonly result: () => Promise<O>
-  readonly describe: (
-    options?: DescribeNexusOperationOptions | undefined
-  ) => Promise<NexusOperationExecutionDescription>
-  readonly cancel: (reason?: string | undefined) => Promise<void>
-  readonly terminate: (reason?: string | undefined) => Promise<void>
-}
+export type UnsafeNexusOperationHandle<O = unknown> = NexusOperationHandle<O>
 
 /**
  * @since 1.0.0

@@ -169,6 +169,26 @@ const isEffectWorkflowExitFailure = (
   && error.details.length > 0
 
 /**
+ * Walks a thrown failure's `cause` chain for an `EffectWorkflowExit`
+ * `ApplicationFailure` and returns the raw encoded `Workflow.Result` from its
+ * details, or `undefined` when the failure was produced outside this
+ * protocol.
+ *
+ * @since 1.0.0
+ * @category Failures
+ */
+export const findEncodedWorkflowExit = (error: unknown): unknown => {
+  let current: unknown = error
+  while (current !== null && typeof current === "object") {
+    if (isEffectWorkflowExitFailure(current)) {
+      return current.details[0]
+    }
+    current = (current as { readonly cause?: unknown }).cause
+  }
+  return undefined
+}
+
+/**
  * Recovers the typed `Workflow.Result` from a thrown Temporal failure, if the
  * failure (or any failure in its `cause` chain) carries an encoded Effect
  * workflow exit. Returns `undefined` for failures produced outside this
@@ -181,12 +201,6 @@ export const decodeWorkflowFailure = (
   workflow: Workflow.Any,
   error: unknown
 ): Workflow.Result<unknown, unknown> | undefined => {
-  let current: unknown = error
-  while (current !== null && typeof current === "object") {
-    if (isEffectWorkflowExitFailure(current)) {
-      return wireCodecsFor(workflow).decodeResult(current.details[0])
-    }
-    current = (current as { readonly cause?: unknown }).cause
-  }
-  return undefined
+  const encoded = findEncodedWorkflowExit(error)
+  return encoded === undefined ? undefined : wireCodecsFor(workflow).decodeResult(encoded)
 }

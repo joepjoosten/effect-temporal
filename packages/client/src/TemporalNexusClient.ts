@@ -1,13 +1,19 @@
 /**
- * Effect service for Temporal Nexus standalone operations.
- *
- * The local Temporal SDK source tree has Nexus support that is not present in
- * every published `@temporalio/client` build. This module uses structural
- * types and dynamic construction so the package still typechecks against the
- * published SDK while supporting local SDK builds that expose Nexus.
+ * Effect service for Temporal Nexus standalone operations, typed against the
+ * real `@temporalio/client` Nexus surface.
  *
  * @since 1.0.0
  */
+import type {
+  GetNexusOperationHandleOptions,
+  ListNexusOperationsOptions,
+  NexusClientOptions,
+  NexusOperationExecution,
+  NexusOperationExecutionCount,
+  NexusServiceClient,
+  StartNexusOperationOptions
+} from "@temporalio/client"
+import { NexusClient } from "@temporalio/client"
 import * as Context from "effect/Context"
 import * as Effect from "effect/Effect"
 import * as Layer from "effect/Layer"
@@ -15,85 +21,44 @@ import type * as Stream from "effect/Stream"
 import type * as NexusRpc from "nexus-rpc"
 import * as TemporalConnection from "./TemporalConnection.js"
 import * as TemporalDataConverter from "./TemporalDataConverter.js"
-import { makeClientError, streamClientIterable, type TemporalClientError, tryClientPromise } from "./TemporalError.js"
+import { streamClientIterable, type TemporalClientError, tryClientPromise, tryClientSync } from "./TemporalError.js"
 import * as TemporalNexusHandle from "./TemporalNexusHandle.js"
 
 /**
+ * Re-exported from `@temporalio/client`.
+ *
  * @since 1.0.0
- * @category Models
+ * @category Re-exports
  */
-export type TemporalNexusClientConfig = Record<string, unknown>
+export type {
+  GetNexusOperationHandleOptions,
+  ListNexusOperationsOptions,
+  NexusOperationExecution,
+  NexusOperationExecutionCount,
+  StartNexusOperationOptions
+} from "@temporalio/client"
 
 /**
  * @since 1.0.0
  * @category Models
  */
-export type GetNexusOperationHandleOptions = {
-  readonly runId?: string | undefined
-}
+export type TemporalNexusClientConfig = Omit<NexusClientOptions, "connection">
 
 /**
+ * The raw SDK Nexus client.
+ *
  * @since 1.0.0
  * @category Models
  */
-export type ListNexusOperationsOptions = {
-  readonly query?: string | undefined
-  readonly pageSize?: number | undefined
-}
+export type UnsafeNexusClient = NexusClient
 
 /**
+ * The raw SDK service client for one endpoint + service pair.
+ *
  * @since 1.0.0
  * @category Models
  */
-export type StartNexusOperationOptions = Record<string, unknown>
-
-/**
- * @since 1.0.0
- * @category Models
- */
-export type NexusOperationExecution = unknown
-
-/**
- * @since 1.0.0
- * @category Models
- */
-export type NexusOperationExecutionCount = unknown
-
-/**
- * @since 1.0.0
- * @category Models
- */
-export interface UnsafeNexusServiceClient<T extends NexusRpc.ServiceDefinition> {
-  readonly endpoint: string
-  readonly service: T
-  readonly startOperation: <Op extends T["operations"][keyof T["operations"]]>(
-    operation: Op,
-    input: NexusRpc.OperationInput<Op>,
-    options: StartNexusOperationOptions
-  ) => Promise<TemporalNexusHandle.UnsafeNexusOperationHandle<NexusRpc.OperationOutput<Op>>>
-  readonly executeOperation: <Op extends T["operations"][keyof T["operations"]]>(
-    operation: Op,
-    input: NexusRpc.OperationInput<Op>,
-    options: StartNexusOperationOptions
-  ) => Promise<NexusRpc.OperationOutput<Op>>
-}
-
-/**
- * @since 1.0.0
- * @category Models
- */
-export interface UnsafeNexusClient {
-  readonly createServiceClient: <T extends NexusRpc.ServiceDefinition>(options: {
-    readonly endpoint: string
-    readonly service: T
-  }) => UnsafeNexusServiceClient<T>
-  readonly getHandle: <O = unknown>(
-    operationId: string,
-    options?: GetNexusOperationHandleOptions | undefined
-  ) => TemporalNexusHandle.UnsafeNexusOperationHandle<O>
-  readonly list: (options?: ListNexusOperationsOptions | undefined) => AsyncIterable<NexusOperationExecution>
-  readonly count: (query?: string | undefined) => Promise<NexusOperationExecutionCount>
-}
+export type UnsafeNexusServiceClient<T extends NexusRpc.ServiceDefinition> = NexusServiceClient<T>
 
 /**
  * @since 1.0.0
@@ -172,7 +137,10 @@ export const fromUnsafe = (client: UnsafeNexusClient): TemporalNexusClient =>
   TemporalNexusClient.of({
     unsafeClient: client,
     createServiceClient: (options) => fromUnsafeServiceClient(client.createServiceClient(options)),
-    getHandle: (operationId, options) => TemporalNexusHandle.fromUnsafe(client.getHandle(operationId, options)),
+    getHandle: <O = unknown>(operationId: string, options?: GetNexusOperationHandleOptions | undefined) =>
+      TemporalNexusHandle.fromUnsafe(
+        client.getHandle(operationId, options) as TemporalNexusHandle.UnsafeNexusOperationHandle<O>
+      ),
     list: (options) => streamClientIterable("NexusClient.list", client.list(options)),
     count: (query) => tryClientPromise("NexusClient.count", () => client.count(query))
   })
@@ -186,16 +154,11 @@ export const make = (
 ): Effect.Effect<TemporalNexusClient, TemporalClientError, TemporalConnection.TemporalConnection> =>
   Effect.gen(function*() {
     const connection = yield* TemporalConnection.TemporalConnection
-    const module = yield* tryClientPromise("NexusClient.import", () => import("@temporalio/client"))
-    const NexusClientConstructor = (module as Record<string, unknown>).NexusClient
-    if (typeof NexusClientConstructor !== "function") {
-      return yield* Effect.fail(
-        makeClientError("NexusClient.constructor", "Temporal SDK client does not expose NexusClient")
-      )
-    }
-    const Constructor = NexusClientConstructor as new(options: Record<string, unknown>) => UnsafeNexusClient
     return fromUnsafe(
-      new Constructor({ ...options, connection: connection.unsafeConnection })
+      yield* tryClientSync(
+        "NexusClient.constructor",
+        () => new NexusClient({ ...options, connection: connection.unsafeConnection })
+      )
     )
   })
 
@@ -241,4 +204,4 @@ export const layerWithDataConverter = (
  * @category Layers
  */
 export const layerFromUnsafe = (client: UnsafeNexusClient): Layer.Layer<TemporalNexusClient> =>
-  Layer.succeed(TemporalNexusClient, fromUnsafe(client))
+  Layer.succeed(TemporalNexusClient)(fromUnsafe(client))
