@@ -1,8 +1,6 @@
 /**
  * @since 1.0.0
  */
-import type * as Exit from "effect/Exit"
-import type * as Workflow from "effect/unstable/workflow/Workflow"
 
 /**
  * @since 1.0.0
@@ -11,32 +9,42 @@ import type * as Workflow from "effect/unstable/workflow/Workflow"
 export type TemporalWorkflowStatus = "running" | "suspended" | "completed"
 
 /**
+ * Workflow state served by the reserved state query. `result` holds the
+ * schema-encoded JSON form of the workflow's `Workflow.Result` (a completed
+ * exit, or a suspension including its cause), produced by
+ * `TemporalWorkflowWire.wireCodecsFor`.
+ *
  * @since 1.0.0
  * @category Models
  */
 export interface TemporalWorkflowState {
   readonly executionId: string
   readonly status: TemporalWorkflowStatus
-  readonly result?: Workflow.ResultEncoded<unknown, unknown> | undefined
-  readonly suspendedCause?: unknown
+  readonly result?: unknown
 }
 
 /**
+ * Deferred lookup response. `exit` is the JSON wire form produced by
+ * `TemporalWorkflowWire.encodeDeferredExit`.
+ *
  * @since 1.0.0
  * @category Models
  */
 export interface TemporalDeferredResult {
   readonly found: boolean
-  readonly exit?: Exit.Exit<unknown, unknown> | undefined
+  readonly exit?: unknown
 }
 
 /**
+ * Deferred completion signal. `exit` is the JSON wire form produced by
+ * `TemporalWorkflowWire.encodeDeferredExit`.
+ *
  * @since 1.0.0
  * @category Models
  */
 export interface CompleteDeferredSignal {
   readonly name: string
-  readonly exit: Exit.Exit<unknown, unknown>
+  readonly exit: unknown
 }
 
 /**
