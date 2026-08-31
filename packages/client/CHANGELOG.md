@@ -1,5 +1,12 @@
 # @effect-temporal/client
 
+## 0.2.3
+
+### Patch Changes
+
+- [#51](https://github.com/joepjoosten/effect-temporal/pull/51) [`e6b2d8c`](https://github.com/joepjoosten/effect-temporal/commit/e6b2d8c336a5a9902b8a241174045f5fd7c45ccb) Thanks [@joepjoosten](https://github.com/joepjoosten)! - Regenerate the package index so the module documentation headers match the
+  retyped Nexus modules.
+
 ## 0.2.2
 
 ### Patch Changes
