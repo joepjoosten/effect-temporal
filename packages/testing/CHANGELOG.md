@@ -1,5 +1,12 @@
 # @effect-temporal/testing
 
+## 0.1.4
+
+### Patch Changes
+
+- Updated dependencies [[`b491a87`](https://github.com/joepjoosten/effect-temporal/commit/b491a8712c72e9f34e34f8e9b348e595d966ac0a), [`4daf050`](https://github.com/joepjoosten/effect-temporal/commit/4daf050a6e7bc5954a209c0b0751959fe176c9b1), [`5d318df`](https://github.com/joepjoosten/effect-temporal/commit/5d318df5906b1e29e39615ada2df38f961b819f3)]:
+  - @effect-temporal/workflow@0.1.4
+
 ## 0.1.3
 
 ### Patch Changes
