@@ -1,5 +1,15 @@
 # @effect-temporal/client
 
+## 0.2.4
+
+### Patch Changes
+
+- [#53](https://github.com/joepjoosten/effect-temporal/pull/53) [`b2cbddb`](https://github.com/joepjoosten/effect-temporal/commit/b2cbddb11122f59757002e9488dc8c1676d55179) Thanks [@joepjoosten](https://github.com/joepjoosten)! - Documentation refresh: the READMEs now describe the current feature set —
+  the deterministic sandbox runtime, typed wire protocol, entity primitives,
+  typed activities, versioning, Nexus, lint plugin, and testing utilities —
+  and a complete type-checked `sample/order-saga` (definitions, bundle,
+  worker, client) ships with the workflow package.
+
 ## 0.2.3
 
 ### Patch Changes
