@@ -1,5 +1,16 @@
 # @effect-temporal/workflow
 
+## 0.1.3
+
+### Patch Changes
+
+- [#33](https://github.com/joepjoosten/effect-temporal/pull/33) [`d401a0a`](https://github.com/joepjoosten/effect-temporal/commit/d401a0a1f6acc6e59a066e1d2c2758453e0802c1) Thanks [@joepjoosten](https://github.com/joepjoosten)! - Upgrade effect to 4.0.0-rc.112
+
+- [#33](https://github.com/joepjoosten/effect-temporal/pull/33) [`6fd7326`](https://github.com/joepjoosten/effect-temporal/commit/6fd7326688569f45f4df710aed74d94419c50a8f) Thanks [@joepjoosten](https://github.com/joepjoosten)! - Upgrade Temporal SDK packages to ^1.23.0
+
+- Updated dependencies [[`d401a0a`](https://github.com/joepjoosten/effect-temporal/commit/d401a0a1f6acc6e59a066e1d2c2758453e0802c1), [`6fd7326`](https://github.com/joepjoosten/effect-temporal/commit/6fd7326688569f45f4df710aed74d94419c50a8f)]:
+  - @effect-temporal/client@0.2.1
+
 ## 0.1.2
 
 ### Patch Changes
