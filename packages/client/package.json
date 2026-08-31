@@ -24,10 +24,10 @@
     "coverage": "vitest --coverage"
   },
   "dependencies": {
-    "@temporalio/client": "^1.17.2",
-    "@temporalio/common": "^1.17.2",
-    "@temporalio/proto": "^1.17.2",
-    "effect": "4.0.0-rc.111",
+    "@temporalio/client": "^1.23.0",
+    "@temporalio/common": "^1.23.0",
+    "@temporalio/proto": "^1.23.0",
+    "effect": "4.0.0-rc.112",
     "nexus-rpc": "^0.0.2"
   },
   "effect": {

@@ -336,7 +336,7 @@ const listPaged = (
     Stream.mapEffect((raw) =>
       tryClientPromise(
         "WorkflowClient.listPaged.executionInfo",
-        () => executionInfoFromRaw(raw, client.options.loadedDataConverter, raw)
+        () => executionInfoFromRaw(raw, client.options.loadedDataConverter, raw, client.options.namespace)
       )
     )
   )
