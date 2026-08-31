@@ -36,6 +36,20 @@ describe("TemporalSandboxPolyfills", () => {
     }
   })
 
+  it("sandboxSubtleDigest matches the platform across block and padding boundaries", async () => {
+    // 55/56/63/64 bytes straddle the single-block padding boundary; the rest
+    // exercise multi-block hashing.
+    for (const length of [0, 1, 31, 32, 55, 56, 57, 63, 64, 65, 119, 120, 121, 127, 128, 1000]) {
+      const data = new Uint8Array(length)
+      for (let i = 0; i < length; i++) {
+        data[i] = (i * 37 + 11) % 256
+      }
+      const expected = new Uint8Array(await crypto.subtle.digest("SHA-256", data))
+      const actual = new Uint8Array(await sandboxSubtleDigest("SHA-256", data))
+      expect(Array.from(actual), `length ${length}`).toEqual(Array.from(expected))
+    }
+  })
+
   it("sandboxSubtleDigest rejects unsupported algorithms", async () => {
     await expect(sandboxSubtleDigest("SHA-1", new Uint8Array())).rejects.toThrow("SHA-256")
   })
