@@ -3,6 +3,7 @@ import * as Schema from "effect/Schema"
 import * as Activity from "effect/unstable/workflow/Activity"
 import * as DurableDeferred from "effect/unstable/workflow/DurableDeferred"
 import * as Workflow from "effect/unstable/workflow/Workflow"
+import * as TemporalContinueAsNew from "../src/TemporalContinueAsNew.js"
 import * as TemporalDurableMailbox from "../src/TemporalDurableMailbox.js"
 import * as TemporalDurableUpdate from "../src/TemporalDurableUpdate.js"
 import * as TemporalStateCell from "../src/TemporalStateCell.js"
@@ -217,6 +218,31 @@ export const RuntimeE2ECounterWorkflow = TemporalWorkflowRuntime.makeWorkflow({
         }
       }
       return `${payload.counterId}=${total}`
+    })
+})
+
+export const countdownWorkflow = Workflow.make("RuntimeE2ECountdownWorkflow", {
+  payload: {
+    chainId: Schema.String,
+    remaining: Schema.Number,
+    total: Schema.Number
+  },
+  success: Schema.String,
+  idempotencyKey: ({ chainId }) => chainId
+})
+
+export const RuntimeE2ECountdownWorkflow = TemporalWorkflowRuntime.makeWorkflow({
+  workflow: countdownWorkflow,
+  execute: (payload: { readonly chainId: string; readonly remaining: number; readonly total: number }) =>
+    Effect.gen(function*() {
+      if (payload.remaining > 0) {
+        return yield* TemporalContinueAsNew.continueAsNew(countdownWorkflow, {
+          chainId: payload.chainId,
+          remaining: payload.remaining - 1,
+          total: payload.total + payload.remaining
+        })
+      }
+      return `${payload.chainId}=${payload.total}`
     })
 })
 

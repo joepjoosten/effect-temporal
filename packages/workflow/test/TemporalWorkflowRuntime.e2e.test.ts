@@ -16,6 +16,7 @@ import {
   batcherWorkflow,
   compensationLog,
   compensationWorkflow,
+  countdownWorkflow,
   counterWorkflow,
   failingWorkflow,
   managerApproval,
@@ -278,5 +279,25 @@ describe("TemporalWorkflowRuntime e2e", () => {
     expect((rejected as NegativeAmount).amount).toBe(-2)
     expect(second).toEqual({ total: 8 })
     expect(result).toBe("counter-1=8")
+  }, 120_000)
+
+  it("continues as new across runs and follows the chain to the final result", async () => {
+    const payload = { chainId: "chain-1", remaining: 3, total: 0 }
+
+    const { events, result } = await runWithWorker((_taskQueue) =>
+      Effect.gen(function*() {
+        const result = yield* countdownWorkflow.execute(payload)
+        const executionId = yield* countdownWorkflow.executionId(payload)
+        const client = yield* TemporalTesting.makeClient()
+        const events = yield* client.fetchHistoryEvents(`${countdownWorkflow._tag}/${executionId}`)
+        return { events, result }
+      }).pipe(Effect.orDie)
+    )
+
+    // 3 + 2 + 1 accumulated across three continue-as-new hops.
+    expect(result).toBe("chain-1=6")
+    // The latest run's history starts from a continued-as-new execution.
+    const started = events.find((event) => event.workflowExecutionStartedEventAttributes != null)
+    expect(started?.workflowExecutionStartedEventAttributes?.continuedExecutionRunId).toBeTruthy()
   }, 120_000)
 })
