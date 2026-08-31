@@ -120,8 +120,8 @@ importers:
         specifier: 4.0.0-rc.112
         version: 4.0.0-rc.112
       nexus-rpc:
-        specifier: ^0.0.2
-        version: 0.0.2
+        specifier: ^0.0.3
+        version: 0.0.3
     publishDirectory: dist
 
   packages/testing:
@@ -158,6 +158,9 @@ importers:
       '@temporalio/common':
         specifier: ^1.23.0
         version: 1.23.0
+      '@temporalio/nexus':
+        specifier: ^1.23.0
+        version: 1.23.0
       '@temporalio/worker':
         specifier: ^1.23.0
         version: 1.23.0(tslib@2.8.1)
@@ -167,6 +170,9 @@ importers:
       effect:
         specifier: 4.0.0-rc.112
         version: 4.0.0-rc.112
+      nexus-rpc:
+        specifier: ^0.0.3
+        version: 0.0.3
     devDependencies:
       '@typescript-eslint/parser':
         specifier: ^8.58.0
@@ -2688,10 +2694,6 @@ packages:
 
   neo-async@2.6.2:
     resolution: {integrity: sha512-Yd3UES5mWCSqR+qNT93S3UoYUkqAZ9lLg8a7g9rimsWmYGK8cVToA4/sF3RrshdyV3sAGMXVUmpMYOw+dLpOuw==}
-
-  nexus-rpc@0.0.2:
-    resolution: {integrity: sha512-IWjIExdVYlmwXuzHdY/Q3lXCv1gbqoAXPazQhy2w4Xgtgha3H0OOujEESVPQcFUFMWm+pAk2gKnb57g8S41JZg==}
-    engines: {node: '>= 20.0.0'}
 
   nexus-rpc@0.0.3:
     resolution: {integrity: sha512-ksIBeYHDv6FHAR1h3Vwk0kQ6REhdo1STqDHXMzu/yn/VN/XzgOor2IUjewG6paoA7IgxlIPZoOU/PD78PC6HTg==}
@@ -6184,8 +6186,6 @@ snapshots:
   natural-compare@1.4.0: {}
 
   neo-async@2.6.2: {}
-
-  nexus-rpc@0.0.2: {}
 
   nexus-rpc@0.0.3: {}
 
