@@ -39,22 +39,16 @@ export * as TemporalDataConverter from "./TemporalDataConverter.js"
 export * as TemporalError from "./TemporalError.js"
 
 /**
- * Effect service for Temporal Nexus standalone operations.
- *
- * The local Temporal SDK source tree has Nexus support that is not present in
- * every published `@temporalio/client` build. This module uses structural
- * types and dynamic construction so the package still typechecks against the
- * published SDK while supporting local SDK builds that expose Nexus.
+ * Effect service for Temporal Nexus standalone operations, typed against the
+ * real `@temporalio/client` Nexus surface.
  *
  * @since 1.0.0
  */
 export * as TemporalNexusClient from "./TemporalNexusClient.js"
 
 /**
- * Effect wrappers for Temporal Nexus operation handles.
- *
- * The published Temporal SDK may not expose Nexus yet, while local SDK builds
- * can. These types are structural so the wrapper can support both.
+ * Effect wrappers for Temporal Nexus operation handles, typed against the
+ * real `@temporalio/client` Nexus surface.
  *
  * @since 1.0.0
  */
