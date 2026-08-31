@@ -1,5 +1,53 @@
 # @effect-temporal/workflow
 
+## 0.1.5
+
+### Patch Changes
+
+- [#42](https://github.com/joepjoosten/effect-temporal/pull/42) [`37b27e1`](https://github.com/joepjoosten/effect-temporal/commit/37b27e1ab08e7873ebe1dbf38ab6de0972ac8c45) Thanks [@joepjoosten](https://github.com/joepjoosten)! - `TemporalContinueAsNew.continueAsNew(workflow, payload, { memo? })`: close
+  the current run and continue the workflow as a new run under the same
+  workflow id, with the new payload encoded through the workflow's schema.
+  The runtime lets Temporal's continuation marker escape the Effect runtime
+  untouched, and clients awaiting the execution follow the run chain to the
+  final result. Per-run state (mailbox logs, update logs, state cells) starts
+  fresh in the new run.
+
+- [#44](https://github.com/joepjoosten/effect-temporal/pull/44) [`32b5cea`](https://github.com/joepjoosten/effect-temporal/commit/32b5cead7752bc8e4e42917b07d9f851093e9278) Thanks [@joepjoosten](https://github.com/joepjoosten)! - `TemporalDurableMailbox`: schema-typed inbound message mailboxes for entity
+  workflows. Define a mailbox once with
+  `TemporalDurableMailbox.make(name, { payload: Schema })`; the workflow body
+  consumes with `take` (durably waits on a Temporal condition) or `poll`
+  (non-blocking), clients send with
+  `TemporalWorkflowInteractions.offerMailbox`, and workflows can signal each
+  other with `TemporalDurableMailbox.offer`. Messages arrive through a
+  reserved signal into an append-only per-run log; consumption cursors reset
+  on every pass of the body, so a resumed run replays already-consumed
+  messages deterministically.
+
+- [#41](https://github.com/joepjoosten/effect-temporal/pull/41) [`fc6007f`](https://github.com/joepjoosten/effect-temporal/commit/fc6007fa5b132039a2adac6dd9efc1e535479ce0) Thanks [@joepjoosten](https://github.com/joepjoosten)! - `TemporalDurableUpdate`: typed request/response interactions with running
+  workflows. Define an update once with
+  `TemporalDurableUpdate.make(name, { payload, success, error })` — the
+  failure channel is a schema too. The workflow body serves requests with
+  `take`, answering each through a one-shot typed `respond`/`succeed`/`fail`
+  capability; clients call `TemporalWorkflowInteractions.executeUpdate` and
+  receive the typed success in the success channel or the schema'd failure in
+  the error channel (with an optional stable `requestId` for idempotent
+  retries and a configurable poll/timeout).
+
+  Also fixes idempotent re-execution: engine starts now use the
+  `REJECT_DUPLICATE` workflow-id reuse policy, so executing a completed
+  execution id attaches to the recorded result instead of starting a fresh
+  run; child-workflow results are memoized per execution id so a resumed pass
+  of the body does not start duplicate children, and re-issued discard starts
+  tolerate an already-running child.
+
+- [#39](https://github.com/joepjoosten/effect-temporal/pull/39) [`1e9d168`](https://github.com/joepjoosten/effect-temporal/commit/1e9d168f7c99a5f3fca649195a8db4bdd6deac86) Thanks [@joepjoosten](https://github.com/joepjoosten)! - `TemporalStateCell`: queryable published workflow state. Define a cell once
+  with `TemporalStateCell.make(name, { value: Schema })`; the workflow body
+  publishes with `TemporalStateCell.set`, and clients read a typed snapshot
+  with `TemporalWorkflowInteractions.readStateCell` — served by a reserved
+  query, so it also works after the run has closed. Introduces the
+  `TemporalSandboxRun` service, which exposes the per-run runtime state to
+  workflow-side primitives and is provided automatically by `makeWorkflow`.
+
 ## 0.1.4
 
 ### Patch Changes
