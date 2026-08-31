@@ -132,12 +132,19 @@ importers:
       '@effect-temporal/workflow':
         specifier: workspace:*
         version: link:../workflow/dist
+      '@temporalio/client':
+        specifier: ^1.23.0
+        version: 1.23.0
       '@temporalio/testing':
         specifier: ^1.23.0
         version: 1.23.0(tslib@2.8.1)
       effect:
         specifier: 4.0.0-rc.112
         version: 4.0.0-rc.112
+    devDependencies:
+      '@temporalio/workflow':
+        specifier: ^1.23.0
+        version: 1.23.0
     publishDirectory: dist
 
   packages/workflow:
