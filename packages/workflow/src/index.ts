@@ -142,6 +142,27 @@ export * as TemporalStateCell from "./TemporalStateCell.js"
 export * as TemporalTypedActivity from "./TemporalTypedActivity.js"
 
 /**
+ * Patch-based versioning for evolving workflow code while old executions are
+ * still replaying.
+ *
+ * Temporal's patch markers let changed workflow code stay deterministic
+ * against histories recorded by earlier deployments: a new execution records
+ * the marker and takes the new path, a replaying execution follows whatever
+ * its history recorded. This module wraps the raw markers as Effects and adds
+ * `match`, a version-chain combinator for code that has evolved more than
+ * once.
+ *
+ * Patch markers must be evaluated deterministically on the main workflow
+ * fiber: never call these from forked fibers, inside `Effect.race`, or behind
+ * non-deterministic conditions.
+ *
+ * This module is sandbox-safe.
+ *
+ * @since 1.0.0
+ */
+export * as TemporalVersioning from "./TemporalVersioning.js"
+
+/**
  * @since 1.0.0
  */
 export * as TemporalWorker from "./TemporalWorker.js"
