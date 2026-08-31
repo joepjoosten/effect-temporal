@@ -6,7 +6,7 @@
  *
  * @since 1.0.0
  */
-import * as Effect from "effect/Effect"
+import type * as Effect from "effect/Effect"
 import { type TemporalClientError, tryClientPromise } from "./TemporalError.js"
 
 /**

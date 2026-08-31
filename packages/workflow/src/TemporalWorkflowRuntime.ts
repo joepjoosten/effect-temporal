@@ -1,6 +1,8 @@
 /**
  * @since 1.0.0
  */
+import { ensureSandboxPolyfills, sandboxScheduler } from "./TemporalSandbox.js"
+
 import {
   condition,
   defineQuery,
@@ -248,14 +250,14 @@ const makeRuntimeEngine = (
     execute: (workflow: Workflow.Any, options: any) =>
       options.discard
         ? Effect.promise(() =>
-          startChild(workflow.name, {
+          startChild(workflow._tag, {
             workflowId: options.executionId,
             args: [options.payload]
           })
         ).pipe(Effect.asVoid) as any
         : Effect.tryPromise({
           try: () =>
-            executeChild(workflow.name, {
+            executeChild(workflow._tag, {
               workflowId: options.executionId,
               args: [options.payload]
             }),
@@ -342,6 +344,7 @@ export const makeWorkflow = <Payload, Success, Error, R>(
   const activityCaller = makeActivityCaller(options.activityProxy)
 
   return async (payload) => {
+    ensureSandboxPolyfills()
     const executionId = executionIdFromWorkflowId(workflowInfo().workflowId)
     const state = makeRuntimeState(executionId)
     installBaseHandlers(state)
@@ -356,7 +359,10 @@ export const makeWorkflow = <Payload, Success, Error, R>(
         Effect.provideService(WorkflowEngine.WorkflowInstance, instance)
       )
       const program = options.provide === undefined ? base : options.provide(base)
-      const result = await Effect.runPromise(program as Effect.Effect<Workflow.Result<Success, Error>, never, never>)
+      const result = await Effect.runPromise(
+        program as Effect.Effect<Workflow.Result<Success, Error>, never, never>,
+        { scheduler: sandboxScheduler }
+      )
 
       if (result._tag === "Complete") {
         state.status = "completed"

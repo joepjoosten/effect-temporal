@@ -104,11 +104,11 @@ export const make = (
 
     const engine = WorkflowEngine.makeUnsafe({
       register: (workflow: Workflow.Any) =>
-        Ref.update(registry, (current) => new Map(current).set(workflow.name, workflow)),
+        Ref.update(registry, (current) => new Map(current).set(workflow._tag, workflow)),
       execute: (workflow: Workflow.Any, options: any) =>
         Effect.gen(function*() {
-          const workflowId = workflowIdFor(workflow.name, options.executionId, config.workflowIdPrefix)
-          const start = client.start(workflow.name, {
+          const workflowId = workflowIdFor(workflow._tag, options.executionId, config.workflowIdPrefix)
+          const start = client.start(workflow._tag, {
             workflowId,
             taskQueue: config.taskQueue,
             args: [options.payload]
@@ -133,7 +133,7 @@ export const make = (
         }) as any,
       poll: (workflow: Workflow.Any, executionId: string) =>
         Effect.gen(function*() {
-          const workflowId = workflowIdFor(workflow.name, executionId, config.workflowIdPrefix)
+          const workflowId = workflowIdFor(workflow._tag, executionId, config.workflowIdPrefix)
           const handle = client.getHandle(workflowId)
           const description = yield* handle.describe.pipe(
             Effect.catchTag("TemporalClientError", () => Effect.succeed(null))
@@ -161,15 +161,15 @@ export const make = (
         }) as any,
       interrupt: (workflow: Workflow.Any, executionId: string) =>
         client.getHandle(
-          workflowIdFor(workflow.name, executionId, config.workflowIdPrefix)
+          workflowIdFor(workflow._tag, executionId, config.workflowIdPrefix)
         ).signal(interruptSignalName).pipe(Effect.catchTag("TemporalClientError", () => Effect.void)),
       interruptUnsafe: (workflow: Workflow.Any, executionId: string) =>
         client.getHandle(
-          workflowIdFor(workflow.name, executionId, config.workflowIdPrefix)
+          workflowIdFor(workflow._tag, executionId, config.workflowIdPrefix)
         ).signal(interruptSignalName).pipe(Effect.catchTag("TemporalClientError", () => Effect.void)),
       resume: (workflow: Workflow.Any, executionId: string) =>
         client.getHandle(
-          workflowIdFor(workflow.name, executionId, config.workflowIdPrefix)
+          workflowIdFor(workflow._tag, executionId, config.workflowIdPrefix)
         ).signal(resumeSignalName).pipe(Effect.catchTag("TemporalClientError", () => Effect.void)),
       activityExecute: () =>
         unsupported(
@@ -179,7 +179,7 @@ export const make = (
         Effect.gen(function*() {
           const instance = yield* WorkflowEngine.WorkflowInstance
           return yield* client.getHandle(
-            workflowIdFor(instance.workflow.name, instance.executionId, config.workflowIdPrefix)
+            workflowIdFor(instance.workflow._tag, instance.executionId, config.workflowIdPrefix)
           ).query<TemporalDeferredResult, [string]>(
             deferredResultQueryName,
             deferred.name
@@ -205,7 +205,7 @@ export const make = (
         options: { readonly executionId: string; readonly clock: DurableClock }
       ) =>
         client.getHandle(
-          workflowIdFor(workflow.name, options.executionId, config.workflowIdPrefix)
+          workflowIdFor(workflow._tag, options.executionId, config.workflowIdPrefix)
         ).signal(
           scheduleClockSignalName,
           {
