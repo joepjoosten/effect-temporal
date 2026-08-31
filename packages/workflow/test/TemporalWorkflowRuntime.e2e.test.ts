@@ -7,6 +7,8 @@ import * as Option from "effect/Option"
 import * as DurableDeferred from "effect/unstable/workflow/DurableDeferred"
 import type * as Workflow from "effect/unstable/workflow/Workflow"
 import { fileURLToPath } from "node:url"
+import * as TemporalClient from "../src/TemporalClient.js"
+import * as TemporalWorkflowInteractions from "../src/TemporalWorkflowInteractions.js"
 import {
   activities,
   approvalWorkflow,
@@ -15,7 +17,9 @@ import {
   failingWorkflow,
   managerApproval,
   OrderRejected,
-  runtimeWorkflow
+  orderStatus,
+  runtimeWorkflow,
+  statusWorkflow
 } from "./TemporalWorkflowRuntime.e2e-workflows.js"
 
 const workflowsPath = fileURLToPath(new URL("./TemporalWorkflowRuntime.e2e-workflows.ts", import.meta.url))
@@ -171,5 +175,49 @@ describe("TemporalWorkflowRuntime e2e", () => {
     // Activity memoization: the resumed pass must not re-run the reserve
     // activity before compensation.
     expect(compensationLog.filter((entry) => entry === "reserve")).toHaveLength(1)
+  }, 120_000)
+
+  it("publishes typed state cells readable while running and after completion", async () => {
+    const payload = { orderId: "ord-status" }
+
+    const { finalStatus, result, suspendedStatus } = await runWithWorker((_taskQueue) =>
+      Effect.gen(function*() {
+        const executionId = yield* statusWorkflow.executionId(payload)
+        const target = { executionId, workflow: statusWorkflow }
+        const client = yield* TemporalTesting.makeClient()
+        const readStatus = TemporalWorkflowInteractions.readStateCell(orderStatus, target).pipe(
+          Effect.provideService(TemporalClient.TemporalWorkflowClient, client)
+        )
+
+        yield* statusWorkflow.execute(payload, { discard: true })
+        yield* pollUntil(
+          statusWorkflow.poll(executionId),
+          (status) => Option.isSome(status) && status.value._tag === "Suspended"
+        )
+        const suspendedStatus = yield* readStatus
+
+        const token = yield* DurableDeferred.tokenFromPayload(managerApproval, {
+          workflow: statusWorkflow,
+          payload
+        })
+        yield* DurableDeferred.succeed(managerApproval, {
+          token,
+          value: { approverId: "boss" }
+        })
+        const completed = yield* pollUntil(
+          statusWorkflow.poll(executionId),
+          (status) => Option.isSome(status) && status.value._tag === "Complete"
+        )
+        const finalStatus = yield* readStatus
+        return { finalStatus, result: Option.getOrThrow(completed) as Workflow.Result<string, never>, suspendedStatus }
+      }).pipe(Effect.orDie)
+    )
+
+    expect(Option.getOrThrow(suspendedStatus)).toEqual({ phase: "reserved", step: 1 })
+    expect(Option.getOrThrow(finalStatus)).toEqual({ phase: "approved", step: 2 })
+    expect(result._tag).toBe("Complete")
+    expect((result as Workflow.Result<string, never> & { _tag: "Complete" }).exit).toEqual(
+      Exit.succeed("ord-status:boss")
+    )
   }, 120_000)
 })

@@ -73,6 +73,33 @@ export interface TemporalWorkflowWireCodecs {
   readonly decodeResult: (encoded: unknown) => Workflow.Result<unknown, unknown>
 }
 
+/**
+ * JSON codecs for a single schema'd value crossing a Temporal boundary.
+ *
+ * @since 1.0.0
+ * @category Models
+ */
+export interface TemporalValueCodecs {
+  readonly encode: (value: unknown) => unknown
+  readonly decode: (value: unknown) => unknown
+}
+
+/**
+ * Builds JSON wire codecs for one schema. The sync codecs die loudly for
+ * schemas that require decoding services; boundary schemas must be
+ * self-contained.
+ *
+ * @since 1.0.0
+ * @category Constructors
+ */
+export const valueCodecsFor = (schema: Schema.Top): TemporalValueCodecs => {
+  const json = Schema.toCodecJson(schema)
+  return {
+    encode: Schema.encodeUnknownSync(json as any) as (value: unknown) => unknown,
+    decode: Schema.decodeUnknownSync(json as any) as (value: unknown) => unknown
+  }
+}
+
 const codecCache = new WeakMap<object, TemporalWorkflowWireCodecs>()
 
 /**
