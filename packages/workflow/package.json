@@ -42,5 +42,9 @@
         "**/*.ts"
       ]
     }
+  },
+  "devDependencies": {
+    "@typescript-eslint/parser": "^8.58.0",
+    "eslint": "^9.39.4"
   }
 }
