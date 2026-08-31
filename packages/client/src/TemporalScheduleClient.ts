@@ -14,7 +14,7 @@ import {
 import * as Context from "effect/Context"
 import * as Effect from "effect/Effect"
 import * as Layer from "effect/Layer"
-import * as Stream from "effect/Stream"
+import type * as Stream from "effect/Stream"
 import * as TemporalConnection from "./TemporalConnection.js"
 import * as TemporalDataConverter from "./TemporalDataConverter.js"
 import { streamClientIterable, type TemporalClientError, tryClientPromise, tryClientSync } from "./TemporalError.js"

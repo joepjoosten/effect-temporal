@@ -14,7 +14,7 @@ import type {
   WorkflowUpdateOptions
 } from "@temporalio/client"
 import * as Effect from "effect/Effect"
-import * as Schema from "effect/Schema"
+import type * as Schema from "effect/Schema"
 import { type TemporalClientError, type TemporalValidationError, tryClientPromise } from "./TemporalError.js"
 import * as TemporalSchema from "./TemporalSchema.js"
 
@@ -70,29 +70,29 @@ export interface TemporalWorkflowHandle<T extends Workflow = Workflow> {
   readonly terminate: (
     reason?: string | undefined
   ) => Effect.Effect<Awaited<ReturnType<WorkflowHandle<T>["terminate"]>>, TemporalClientError>
-  readonly query: <Ret, Args extends any[] = []>(
+  readonly query: <Ret, Args extends Array<any> = []>(
     definition: QueryDefinition<Ret, Args> | string,
     ...args: Args
   ) => Effect.Effect<Ret, TemporalClientError>
-  readonly queryAs: <Result extends Schema.Top, Args extends any[] = []>(
+  readonly queryAs: <Result extends Schema.Top, Args extends Array<any> = []>(
     schema: Result,
     definition: QueryDefinition<Result["Type"], Args> | string,
     ...args: Args
   ) => Effect.Effect<Result["Type"], TemporalClientError | TemporalValidationError, Result["DecodingServices"]>
-  readonly signal: <Args extends any[]>(
+  readonly signal: <Args extends Array<any>>(
     definition: SignalDefinition<Args> | string,
     ...args: Args
   ) => Effect.Effect<void, TemporalClientError>
-  readonly executeUpdate: <Ret, Args extends any[]>(
+  readonly executeUpdate: <Ret, Args extends Array<any>>(
     definition: UpdateDefinition<Ret, Args> | string,
     options?: WorkflowUpdateOptions & { readonly args?: Args | undefined }
   ) => Effect.Effect<Ret, TemporalClientError>
-  readonly executeUpdateAs: <Result extends Schema.Top, Args extends any[]>(
+  readonly executeUpdateAs: <Result extends Schema.Top, Args extends Array<any>>(
     schema: Result,
     definition: UpdateDefinition<Result["Type"], Args> | string,
     options?: WorkflowUpdateOptions & { readonly args?: Args | undefined }
   ) => Effect.Effect<Result["Type"], TemporalClientError | TemporalValidationError, Result["DecodingServices"]>
-  readonly startUpdate: <Ret, Args extends any[]>(
+  readonly startUpdate: <Ret, Args extends Array<any>>(
     definition: UpdateDefinition<Ret, Args> | string,
     options: WorkflowUpdateOptions & {
       readonly args?: Args | undefined
