@@ -12,10 +12,12 @@ import * as TemporalWorkflowInteractions from "../src/TemporalWorkflowInteractio
 import {
   activities,
   approvalWorkflow,
+  batcherWorkflow,
   compensationLog,
   compensationWorkflow,
   failingWorkflow,
   managerApproval,
+  orderCommands,
   OrderRejected,
   orderStatus,
   runtimeWorkflow,
@@ -219,5 +221,28 @@ describe("TemporalWorkflowRuntime e2e", () => {
     expect((result as Workflow.Result<string, never> & { _tag: "Complete" }).exit).toEqual(
       Exit.succeed("ord-status:boss")
     )
+  }, 120_000)
+
+  it("delivers typed mailbox messages to a durably waiting workflow", async () => {
+    const payload = { batchId: "batch-1" }
+
+    const result = await runWithWorker((_taskQueue) =>
+      Effect.gen(function*() {
+        const executionId = yield* batcherWorkflow.executionId(payload)
+        const target = { executionId, workflow: batcherWorkflow }
+        const client = yield* TemporalTesting.makeClient()
+
+        yield* batcherWorkflow.execute(payload, { discard: true })
+        for (const [sequence, command] of [[1, "reserve"], [2, "charge"], [3, "ship"]] as const) {
+          yield* TemporalWorkflowInteractions.offerMailbox(orderCommands, target, { command, sequence }).pipe(
+            Effect.provideService(TemporalClient.TemporalWorkflowClient, client)
+          )
+        }
+
+        return yield* batcherWorkflow.execute(payload)
+      }).pipe(Effect.orDie)
+    )
+
+    expect(result).toBe("batch-1=1:reserve,2:charge,3:ship")
   }, 120_000)
 })

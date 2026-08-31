@@ -3,6 +3,7 @@ import * as Schema from "effect/Schema"
 import * as Activity from "effect/unstable/workflow/Activity"
 import * as DurableDeferred from "effect/unstable/workflow/DurableDeferred"
 import * as Workflow from "effect/unstable/workflow/Workflow"
+import * as TemporalDurableMailbox from "../src/TemporalDurableMailbox.js"
 import * as TemporalStateCell from "../src/TemporalStateCell.js"
 import * as TemporalWorkflowRuntime from "../src/TemporalWorkflowRuntime.js"
 
@@ -154,6 +155,31 @@ export const RuntimeE2EStatusWorkflow = TemporalWorkflowRuntime.makeWorkflow({
       const approval = yield* DurableDeferred.await(managerApproval)
       yield* TemporalStateCell.set(orderStatus, { phase: "approved", step: 2 })
       return `${payload.orderId}:${approval.approverId}`
+    })
+})
+
+export const orderCommands = TemporalDurableMailbox.make("order-commands", {
+  payload: Schema.Struct({ command: Schema.String, sequence: Schema.Number })
+})
+
+export const batcherWorkflow = Workflow.make("RuntimeE2EBatcherWorkflow", {
+  payload: {
+    batchId: Schema.String
+  },
+  success: Schema.String,
+  idempotencyKey: ({ batchId }) => batchId
+})
+
+export const RuntimeE2EBatcherWorkflow = TemporalWorkflowRuntime.makeWorkflow({
+  workflow: batcherWorkflow,
+  execute: (payload: { readonly batchId: string }) =>
+    Effect.gen(function*() {
+      const commands: Array<string> = []
+      while (commands.length < 3) {
+        const message = yield* TemporalDurableMailbox.take(orderCommands)
+        commands.push(`${message.sequence}:${message.command}`)
+      }
+      return `${payload.batchId}=${commands.join(",")}`
     })
 })
 

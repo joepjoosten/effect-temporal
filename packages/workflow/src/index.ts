@@ -13,6 +13,23 @@ export * as TemporalClient from "./TemporalClient.js"
 export * as TemporalConnection from "./TemporalConnection.js"
 
 /**
+ * Durable, schema-typed inbound message mailboxes for entity workflows.
+ *
+ * A mailbox is a named channel of repeated inbound messages. Messages arrive
+ * through a reserved signal and are appended to a per-run log; the workflow
+ * body consumes them with `take` (durably waits) or `poll` (non-blocking).
+ * Consumption is tracked by a cursor that resets on every pass of the body,
+ * so a resumed run replays already-consumed messages deterministically.
+ *
+ * This module is sandbox-safe: definitions, `take`, `poll`, and the
+ * workflow-to-workflow `offer` can be imported from the workflow bundle. The
+ * client-side offer lives in `TemporalWorkflowInteractions.offerMailbox`.
+ *
+ * @since 1.0.0
+ */
+export * as TemporalDurableMailbox from "./TemporalDurableMailbox.js"
+
+/**
  * @since 1.0.0
  */
 export * as TemporalError from "./TemporalError.js"
