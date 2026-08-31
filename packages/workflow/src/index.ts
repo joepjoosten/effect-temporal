@@ -70,6 +70,29 @@ export * as TemporalDurableUpdate from "./TemporalDurableUpdate.js"
 export * as TemporalError from "./TemporalError.js"
 
 /**
+ * An ESLint plugin (flat-config compatible) enforcing workflow-sandbox
+ * safety for Effect workflow bundles. The rules catch the mistakes that
+ * otherwise only surface as non-deterministic replay failures in production.
+ *
+ * Usage (flat config), applied to the files that make up workflow bundles:
+ *
+ * ```ts
+ * import { plugin as effectTemporal } from "@effect-temporal/workflow/TemporalLint"
+ *
+ * export default [
+ *   {
+ *     files: ["src/workflows/**"],
+ *     plugins: { "effect-temporal": effectTemporal },
+ *     rules: effectTemporal.configs.recommended.rules
+ *   }
+ * ]
+ * ```
+ *
+ * @since 1.0.0
+ */
+export * as TemporalLint from "./TemporalLint.js"
+
+/**
  * Effect runtime configuration for the Temporal workflow sandbox.
  *
  * The polyfill import below must stay first so the globals are installed

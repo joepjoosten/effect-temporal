@@ -160,6 +160,13 @@ importers:
       effect:
         specifier: 4.0.0-rc.112
         version: 4.0.0-rc.112
+    devDependencies:
+      '@typescript-eslint/parser':
+        specifier: ^8.58.0
+        version: 8.58.0(eslint@9.39.4)(typescript@5.9.3)
+      eslint:
+        specifier: ^9.39.4
+        version: 9.39.4
     publishDirectory: dist
 
 packages:
