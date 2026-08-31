@@ -3,6 +3,7 @@
  */
 import { ensureSandboxPolyfills, sandboxScheduler } from "./TemporalSandbox.js"
 
+import { WorkflowExecutionAlreadyStartedError } from "@temporalio/common"
 import {
   CancellationScope,
   condition,
@@ -32,7 +33,9 @@ import type {
   ScheduleClockSignal,
   TemporalDeferredResult,
   TemporalStateCellResult,
-  TemporalWorkflowState
+  TemporalUpdateResult,
+  TemporalWorkflowState,
+  UpdateSignal
 } from "./TemporalWorkflowProtocol.js"
 import {
   completeDeferredSignalName,
@@ -42,6 +45,8 @@ import {
   resumeSignalName,
   scheduleClockSignalName,
   stateCellQueryName,
+  updateResultQueryName,
+  updateSignalName,
   workflowStateQueryName
 } from "./TemporalWorkflowProtocol.js"
 import {
@@ -102,6 +107,18 @@ export const mailboxSignal = defineSignal<[MailboxSignal]>(mailboxSignalName)
 
 /**
  * @since 1.0.0
+ * @category Protocol
+ */
+export const updateSignal = defineSignal<[UpdateSignal]>(updateSignalName)
+
+/**
+ * @since 1.0.0
+ * @category Protocol
+ */
+export const updateResultQuery = defineQuery<TemporalUpdateResult, [requestId: string]>(updateResultQueryName)
+
+/**
+ * @since 1.0.0
  * @category Models
  */
 export interface TemporalWorkflowRuntimeState {
@@ -122,6 +139,19 @@ export interface TemporalWorkflowRuntimeState {
    */
   readonly mailboxLogs: Map<string, Array<unknown>>
   readonly mailboxCursors: Map<string, number>
+  /**
+   * Append-only log of received update requests per update name, consumed
+   * through `updateCursors` like mailbox messages; responses are recorded per
+   * request id and served by the update-result query.
+   */
+  readonly updateLogs: Map<string, Array<UpdateSignal>>
+  readonly updateCursors: Map<string, number>
+  readonly updateResults: Map<string, unknown>
+  /**
+   * Completed child-workflow results keyed by child execution id, so a
+   * resumed pass of the body does not start a duplicate child run.
+   */
+  readonly childResults: Map<string, Workflow.Result<unknown, unknown>>
   runScope?: CancellationScope | undefined
 }
 
@@ -162,7 +192,11 @@ export const makeRuntimeState = (
   inFlight: new Set(),
   stateCells: new Map(),
   mailboxLogs: new Map(),
-  mailboxCursors: new Map()
+  mailboxCursors: new Map(),
+  updateLogs: new Map(),
+  updateCursors: new Map(),
+  updateResults: new Map(),
+  childResults: new Map()
 })
 
 /**
@@ -216,6 +250,20 @@ export const installBaseHandlers = (
       state.mailboxLogs.set(name, log)
     }
     log.push(payload)
+  })
+  setHandler(updateSignal, (request) => {
+    let log = state.updateLogs.get(request.name)
+    if (log === undefined) {
+      log = []
+      state.updateLogs.set(request.name, log)
+    }
+    log.push(request)
+  })
+  setHandler(updateResultQuery, (requestId) => {
+    const exit = state.updateResults.get(requestId)
+    return exit === undefined
+      ? { found: false }
+      : { found: true, exit }
   })
 }
 
@@ -296,6 +344,9 @@ const executionIdFromWorkflowId = (
 
 const unsupported = (message: string): Effect.Effect<never, never> => Effect.die(new Error(message))
 
+const isWorkflowExecutionAlreadyStartedError = (u: unknown): u is WorkflowExecutionAlreadyStartedError =>
+  u instanceof WorkflowExecutionAlreadyStartedError
+
 const makeActivityCaller = (
   activityProxy: TemporalActivityProxy | undefined
 ): Record<string, (input: TemporalActivityInvocation) => Promise<Workflow.ResultEncoded<unknown, unknown>>> =>
@@ -322,30 +373,48 @@ const makeRuntimeEngine = (
     register: () => unsupported("Workflow registration is not available inside a Temporal workflow runtime"),
     execute: (workflow: Workflow.Any, options: any) =>
       options.discard
-        ? Effect.promise(() =>
-          startChild(workflow._tag, {
-            workflowId: options.executionId,
-            args: [wireCodecsFor(workflow).encodePayload(options.payload)]
-          })
-        ).pipe(Effect.asVoid) as any
-        : Effect.tryPromise({
+        ? Effect.tryPromise({
           try: () =>
-            executeChild(workflow._tag, {
+            startChild(workflow._tag, {
               workflowId: options.executionId,
               args: [wireCodecsFor(workflow).encodePayload(options.payload)]
             }),
           catch: (cause) => cause
         }).pipe(
-          Effect.match({
-            onFailure: (cause) =>
-              decodeWorkflowFailure(workflow, cause)
-                ?? new Workflow.Complete({ exit: Exit.die(cause) }),
-            onSuccess: (value) =>
-              new Workflow.Complete({
-                exit: Exit.succeed(wireCodecsFor(workflow).decodeSuccess(value))
+          // A resumed pass re-issues the start; an already-running child is
+          // not an error.
+          Effect.catch((cause) => isWorkflowExecutionAlreadyStartedError(cause) ? Effect.void : Effect.die(cause)),
+          Effect.asVoid
+        ) as any
+        : Effect.suspend(() => {
+          const cached = state.childResults.get(options.executionId)
+          if (cached !== undefined) {
+            return Effect.succeed(cached)
+          }
+          return Effect.tryPromise({
+            try: () =>
+              executeChild(workflow._tag, {
+                workflowId: options.executionId,
+                args: [wireCodecsFor(workflow).encodePayload(options.payload)]
+              }),
+            catch: (cause) => cause
+          }).pipe(
+            Effect.match({
+              onFailure: (cause) =>
+                decodeWorkflowFailure(workflow, cause)
+                  ?? new Workflow.Complete({ exit: Exit.die(cause) }),
+              onSuccess: (value) =>
+                new Workflow.Complete({
+                  exit: Exit.succeed(wireCodecsFor(workflow).decodeSuccess(value))
+                })
+            }),
+            Effect.tap((result) =>
+              Effect.sync(() => {
+                state.childResults.set(options.executionId, result)
               })
-          })
-        ) as any,
+            )
+          )
+        }) as any,
     poll: () => unsupported("Workflow polling is not available inside a Temporal workflow runtime"),
     interrupt: () =>
       Effect.sync(() => {
@@ -487,9 +556,10 @@ export const makeWorkflow = <Payload, Success, Error, R>(
       void condition(() => state.interrupted).then(onInterrupted)
 
       while (true) {
-        // Each pass of the body replays consumed mailbox messages from the
-        // start of the log.
+        // Each pass of the body replays consumed mailbox messages and update
+        // requests from the start of their logs.
         state.mailboxCursors.clear()
+        state.updateCursors.clear()
         const instance = WorkflowEngine.WorkflowInstance.initial(options.workflow, executionId)
         instance.interrupted = state.interrupted
         activeInstance = instance

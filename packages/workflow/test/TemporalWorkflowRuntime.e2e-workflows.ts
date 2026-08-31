@@ -4,6 +4,7 @@ import * as Activity from "effect/unstable/workflow/Activity"
 import * as DurableDeferred from "effect/unstable/workflow/DurableDeferred"
 import * as Workflow from "effect/unstable/workflow/Workflow"
 import * as TemporalDurableMailbox from "../src/TemporalDurableMailbox.js"
+import * as TemporalDurableUpdate from "../src/TemporalDurableUpdate.js"
 import * as TemporalStateCell from "../src/TemporalStateCell.js"
 import * as TemporalWorkflowRuntime from "../src/TemporalWorkflowRuntime.js"
 
@@ -180,6 +181,42 @@ export const RuntimeE2EBatcherWorkflow = TemporalWorkflowRuntime.makeWorkflow({
         commands.push(`${message.sequence}:${message.command}`)
       }
       return `${payload.batchId}=${commands.join(",")}`
+    })
+})
+
+export class NegativeAmount extends Schema.TaggedError<NegativeAmount>()("NegativeAmount", {
+  amount: Schema.Number
+}) {}
+
+export const addToCounter = TemporalDurableUpdate.make("add-to-counter", {
+  payload: Schema.Struct({ amount: Schema.Number }),
+  success: Schema.Struct({ total: Schema.Number }),
+  error: NegativeAmount
+})
+
+export const counterWorkflow = Workflow.make("RuntimeE2ECounterWorkflow", {
+  payload: {
+    counterId: Schema.String
+  },
+  success: Schema.String,
+  idempotencyKey: ({ counterId }) => counterId
+})
+
+export const RuntimeE2ECounterWorkflow = TemporalWorkflowRuntime.makeWorkflow({
+  workflow: counterWorkflow,
+  execute: (payload: { readonly counterId: string }) =>
+    Effect.gen(function*() {
+      let total = 0
+      for (let served = 0; served < 3; served++) {
+        const request = yield* TemporalDurableUpdate.take(addToCounter)
+        if (request.payload.amount < 0) {
+          yield* request.fail(new NegativeAmount({ amount: request.payload.amount }))
+        } else {
+          total += request.payload.amount
+          yield* request.succeed({ total })
+        }
+      }
+      return `${payload.counterId}=${total}`
     })
 })
 

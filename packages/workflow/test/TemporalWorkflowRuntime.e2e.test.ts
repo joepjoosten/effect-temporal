@@ -11,12 +11,15 @@ import * as TemporalClient from "../src/TemporalClient.js"
 import * as TemporalWorkflowInteractions from "../src/TemporalWorkflowInteractions.js"
 import {
   activities,
+  addToCounter,
   approvalWorkflow,
   batcherWorkflow,
   compensationLog,
   compensationWorkflow,
+  counterWorkflow,
   failingWorkflow,
   managerApproval,
+  NegativeAmount,
   orderCommands,
   OrderRejected,
   orderStatus,
@@ -244,5 +247,36 @@ describe("TemporalWorkflowRuntime e2e", () => {
     )
 
     expect(result).toBe("batch-1=1:reserve,2:charge,3:ship")
+  }, 120_000)
+
+  it("serves durable updates with typed success and typed failure responses", async () => {
+    const payload = { counterId: "counter-1" }
+
+    const { first, rejected, result, second } = await runWithWorker((_taskQueue) =>
+      Effect.gen(function*() {
+        const executionId = yield* counterWorkflow.executionId(payload)
+        const target = { executionId, workflow: counterWorkflow }
+        const client = yield* TemporalTesting.makeClient()
+        const sendUpdate = (amount: number) =>
+          TemporalWorkflowInteractions.executeUpdate(addToCounter, target, { amount }).pipe(
+            Effect.provideService(TemporalClient.TemporalWorkflowClient, client)
+          )
+
+        yield* counterWorkflow.execute(payload, { discard: true })
+        const first = yield* sendUpdate(5)
+        const rejected = yield* sendUpdate(-2).pipe(Effect.flip)
+        const second = yield* sendUpdate(3)
+        // Re-executing a completed execution id must attach to the recorded
+        // result, not start a fresh run (REJECT_DUPLICATE reuse policy).
+        const result = yield* counterWorkflow.execute(payload)
+        return { first, rejected, result, second }
+      }).pipe(Effect.orDie)
+    )
+
+    expect(first).toEqual({ total: 5 })
+    expect(rejected).toBeInstanceOf(NegativeAmount)
+    expect((rejected as NegativeAmount).amount).toBe(-2)
+    expect(second).toEqual({ total: 8 })
+    expect(result).toBe("counter-1=8")
   }, 120_000)
 })
