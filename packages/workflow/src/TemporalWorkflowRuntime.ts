@@ -15,7 +15,6 @@ import {
   startChild,
   workflowInfo
 } from "@temporalio/workflow"
-import * as Cause from "effect/Cause"
 import * as Duration from "effect/Duration"
 import * as Effect from "effect/Effect"
 import * as Exit from "effect/Exit"
@@ -38,6 +37,13 @@ import {
   scheduleClockSignalName,
   workflowStateQueryName
 } from "./TemporalWorkflowProtocol.js"
+import {
+  decodeDeferredExit,
+  decodeWorkflowFailure,
+  encodeDeferredExit,
+  encodeWorkflowFailure,
+  wireCodecsFor
+} from "./TemporalWorkflowWire.js"
 
 /**
  * @since 1.0.0
@@ -85,8 +91,7 @@ export interface TemporalWorkflowRuntimeState {
   interrupted: boolean
   resumed: boolean
   result: TemporalWorkflowState["result"]
-  suspendedCause: TemporalWorkflowState["suspendedCause"]
-  readonly deferreds: Map<string, Exit.Exit<unknown, unknown>>
+  readonly deferreds: Map<string, unknown>
   readonly clocks: Map<string, ScheduleClockSignal>
 }
 
@@ -102,7 +107,6 @@ export const makeRuntimeState = (
   interrupted: false,
   resumed: false,
   result: undefined,
-  suspendedCause: undefined,
   deferreds: new Map(),
   clocks: new Map()
 })
@@ -117,8 +121,7 @@ export const installBaseHandlers = (
   setHandler(workflowStateQuery, () => ({
     executionId: state.executionId,
     status: state.status,
-    result: state.result,
-    suspendedCause: state.suspendedCause
+    result: state.result
   }))
   setHandler(deferredResultQuery, (name) => {
     const exit = state.deferreds.get(name)
@@ -252,19 +255,26 @@ const makeRuntimeEngine = (
         ? Effect.promise(() =>
           startChild(workflow._tag, {
             workflowId: options.executionId,
-            args: [options.payload]
+            args: [wireCodecsFor(workflow).encodePayload(options.payload)]
           })
         ).pipe(Effect.asVoid) as any
         : Effect.tryPromise({
           try: () =>
             executeChild(workflow._tag, {
               workflowId: options.executionId,
-              args: [options.payload]
+              args: [wireCodecsFor(workflow).encodePayload(options.payload)]
             }),
           catch: (cause) => cause
         }).pipe(
-          Effect.exit,
-          Effect.map((exit) => new Workflow.Complete({ exit }))
+          Effect.match({
+            onFailure: (cause) =>
+              decodeWorkflowFailure(workflow, cause)
+                ?? new Workflow.Complete({ exit: Exit.die(cause) }),
+            onSuccess: (value) =>
+              new Workflow.Complete({
+                exit: Exit.succeed(wireCodecsFor(workflow).decodeSuccess(value))
+              })
+          })
         ) as any,
     poll: () => unsupported("Workflow polling is not available inside a Temporal workflow runtime"),
     interrupt: () =>
@@ -304,11 +314,11 @@ const makeRuntimeEngine = (
     deferredResult: (deferred) =>
       Effect.sync(() => {
         const exit = state.deferreds.get(deferred.name)
-        return exit === undefined ? Option.none() : Option.some(exit)
+        return exit === undefined ? Option.none() : Option.some(decodeDeferredExit(exit))
       }),
     deferredDone: ({ deferredName, exit }) =>
       Effect.sync(() => {
-        state.deferreds.set(deferredName, exit)
+        state.deferreds.set(deferredName, encodeDeferredExit(exit))
         if (!state.interrupted) {
           state.resumed = true
           state.status = "running"
@@ -325,7 +335,7 @@ const makeRuntimeEngine = (
         } satisfies ScheduleClockSignal
         state.clocks.set(clock.name, clock)
         void sleep(clock.durationMs).then(() => {
-          state.deferreds.set(options.clock.deferred.name, Exit.void)
+          state.deferreds.set(options.clock.deferred.name, encodeDeferredExit(Exit.void))
           if (!state.interrupted) {
             state.resumed = true
             state.status = "running"
@@ -345,15 +355,17 @@ export const makeWorkflow = <Payload, Success, Error, R>(
 
   return async (payload) => {
     ensureSandboxPolyfills()
+    const codecs = wireCodecsFor(options.workflow)
     const executionId = executionIdFromWorkflowId(workflowInfo().workflowId)
     const state = makeRuntimeState(executionId)
     installBaseHandlers(state)
+    const decodedPayload = codecs.decodePayload(payload) as Payload
 
     while (true) {
       const instance = WorkflowEngine.WorkflowInstance.initial(options.workflow, executionId)
       instance.interrupted = state.interrupted
       const engine = makeRuntimeEngine(state, activityCaller)
-      const base = options.execute(payload, executionId).pipe(
+      const base = options.execute(decodedPayload, executionId).pipe(
         Workflow.intoResult,
         Effect.provideService(WorkflowEngine.WorkflowEngine, engine),
         Effect.provideService(WorkflowEngine.WorkflowInstance, instance)
@@ -366,17 +378,18 @@ export const makeWorkflow = <Payload, Success, Error, R>(
 
       if (result._tag === "Complete") {
         state.status = "completed"
-        state.result = encodeWorkflowResult(result) as unknown as Workflow.ResultEncoded<unknown, unknown>
+        state.result = codecs.encodeResult(result)
         if (result.exit._tag === "Success") {
-          return result.exit.value as Success
+          return codecs.encodeSuccess(result.exit.value) as Success
         }
-        throw Cause.squash(result.exit.cause)
+        throw encodeWorkflowFailure(options.workflow, result, result.exit.cause)
       }
 
       state.status = "suspended"
-      state.suspendedCause = result.cause
+      state.result = codecs.encodeResult(result)
       await waitForResume(state)
-      state.suspendedCause = undefined
+      state.result = undefined
+      state.status = "running"
     }
   }
 }

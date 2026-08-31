@@ -148,6 +148,9 @@ importers:
       '@temporalio/client':
         specifier: ^1.23.0
         version: 1.23.0
+      '@temporalio/common':
+        specifier: ^1.23.0
+        version: 1.23.0
       '@temporalio/worker':
         specifier: ^1.23.0
         version: 1.23.0(tslib@2.8.1)

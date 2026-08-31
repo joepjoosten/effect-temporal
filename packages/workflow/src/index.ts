@@ -67,3 +67,20 @@ export * as TemporalWorkflowProtocol from "./TemporalWorkflowProtocol.js"
  * @since 1.0.0
  */
 export * as TemporalWorkflowRuntime from "./TemporalWorkflowRuntime.js"
+
+/**
+ * Wire codecs for every value that crosses a Temporal boundary: workflow
+ * payloads, workflow results, and durable-deferred exits.
+ *
+ * Everything on the wire is schema-encoded JSON. Typed workflow failures fail
+ * the Temporal run with the full encoded `Workflow.Result` carried in
+ * `ApplicationFailure.details[0]` under the {@link workflowExitFailureType}
+ * failure type, so every reading side can decode the exit back into the
+ * workflow's typed success and error channels.
+ *
+ * This module is imported inside the workflow sandbox, so it must only depend
+ * on `effect` and `@temporalio/common`.
+ *
+ * @since 1.0.0
+ */
+export * as TemporalWorkflowWire from "./TemporalWorkflowWire.js"
