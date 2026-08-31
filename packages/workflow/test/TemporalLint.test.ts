@@ -97,18 +97,26 @@ describe("TemporalLint", () => {
     })
   })
 
-  it("passes over the sample workflow bundle with the recommended preset", () => {
-    const samplePath = fileURLToPath(new URL("../sample/effect-workflow-example.ts", import.meta.url))
-    const linter = new Linter()
-    const messages = linter.verify(readFileSync(samplePath, "utf8"), {
-      languageOptions: {
-        parser: tsParser as never,
-        sourceType: "module"
-      },
-      plugins: { "effect-temporal": plugin as never },
-      rules: plugin.configs.recommended.rules as Linter.RulesRecord
-    })
-    expect(messages).toEqual([])
+  it("passes over the sample workflow bundles with the recommended preset", () => {
+    for (
+      const sample of [
+        "../sample/effect-workflow-example.ts",
+        "../sample/order-saga/definitions.ts",
+        "../sample/order-saga/workflows.ts"
+      ]
+    ) {
+      const samplePath = fileURLToPath(new URL(sample, import.meta.url))
+      const linter = new Linter()
+      const messages = linter.verify(readFileSync(samplePath, "utf8"), {
+        languageOptions: {
+          parser: tsParser as never,
+          sourceType: "module"
+        },
+        plugins: { "effect-temporal": plugin as never },
+        rules: plugin.configs.recommended.rules as Linter.RulesRecord
+      })
+      expect(messages, sample).toEqual([])
+    }
   })
 
   it("exposes a recommended preset covering every rule", () => {

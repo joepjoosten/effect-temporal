@@ -1,6 +1,14 @@
 # `@effect-temporal/client`
 
-Effect services and helpers around `@temporalio/client`.
+Effect services and helpers around `@temporalio/client`: scoped connections
+(`TemporalConnection`), a workflow client with schema-validated variants and
+visibility/history helpers (`TemporalWorkflowClient`), schedules
+(`TemporalScheduleClient`), standalone activities (`TemporalActivityClient`),
+task-queue build-id operations (`TemporalTaskQueueClient`), standalone Nexus
+operations typed against the real SDK surface (`TemporalNexusClient`), and an
+Effect-backed encrypting data converter (`TemporalDataConverter`). Every
+promise becomes an Effect, every async iterable a Stream, and the raw SDK
+objects stay reachable through `unsafe*` fields.
 
 ```ts
 import * as TemporalClient from "@effect-temporal/client/TemporalClient"

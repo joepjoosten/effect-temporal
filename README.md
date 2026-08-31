@@ -1,282 +1,362 @@
-# Effect Temporal IO
+# Effect Temporal
 
-This repository contains an Effect v4 integration for
-Temporal. The first package is `@effect-temporal/workflow`, which provides
-Effect-friendly wrappers around Temporal connections, workflow clients,
-workers, and the protocol primitives needed to map
-`effect/unstable/workflow` onto Temporal executions.
+Run [Effect](https://effect.website) workflows (`effect/unstable/workflow`) on
+[Temporal](https://temporal.io): author workflows as Effect programs with
+schemas and typed errors, and let Temporal own durable execution, replay,
+retries, task queues, and the operational tooling around them.
 
-The repository also includes `@effect-temporal/testing`, a small helper package
-for writing fast Temporal-backed tests. It provides scoped test environments
-from `@temporalio/testing`, unique task queue helpers, and convenience
-constructors / layers for workflow clients, workflow engines, and workers that
-automatically use the test environment address and namespace.
+The monorepo publishes three packages:
 
-The current implementation includes client, worker, workflow metadata,
-workflow-engine operations, workflow runtime execution, activity bridging,
-deferred result protocols, durable clock handling, and child workflow
-execution. Initial live Temporal end-to-end coverage is in place for the
-worker/client path, and broader runtime coverage is still being expanded.
+| Package                    | What it is                                                                                                                              |
+| -------------------------- | --------------------------------------------------------------------------------------------------------------------------------------- |
+| `@effect-temporal/workflow` | The `WorkflowEngine` implementation: the client-side engine, the sandbox runtime, entity primitives, typed activities, versioning, Nexus |
+| `@effect-temporal/client`   | A general Effect wrapper over `@temporalio/client`: connections, workflow/schedule/activity/Nexus clients as services and layers          |
+| `@effect-temporal/testing`  | Test-server environments, a one-call workflow test harness, and a recording stub client for serverless unit tests                        |
 
-## How Effect workflows interoperate with Temporal
+## Features
 
-Effect workflows are described with `effect/unstable/workflow`. They define a
-workflow name, payload schema, success schema, error schema, idempotency key,
-and an Effect program that represents the workflow body.
+- **A real `WorkflowEngine`** — `TemporalWorkflowEngine.layer` is a drop-in
+  replacement for Effect's in-memory or cluster engines. Workflow bodies are
+  ordinary Effect programs; Temporal owns durability.
+- **Deterministic sandbox runtime** — fiber scheduling runs on the microtask
+  queue (never on Temporal timers), and the runtime installs sandbox polyfills
+  (`crypto.subtle.digest`, `getRandomValues`, `TextEncoder`, a pinned
+  `performance`) byte-pinned against Node, so execution ids hashed in the
+  sandbox match ids computed client-side.
+- **Typed end to end** — every value crossing a Temporal boundary is
+  schema-encoded JSON. A failing workflow fails the Temporal run (red in the
+  UI) carrying its encoded exit, and every reading side decodes it back: typed
+  errors arrive in the Effect error channel as real schema class instances.
+- **Cancellation and compensation** — Temporal cancellations and Effect
+  interrupts both interrupt the live fiber, so finalizers and
+  `Workflow.withCompensation` run; in-flight activities are cancelled;
+  cancelled runs close as Cancelled.
+- **Entity workflows** — `TemporalDurableMailbox` (repeated typed inbound
+  messages), `TemporalDurableUpdate` (typed request/response with a schema'd
+  failure channel), `TemporalStateCell` (queryable published state, readable
+  after the run closes), and `TemporalContinueAsNew`.
+- **Typed activities** — `TemporalTypedActivity` declares payload, success,
+  and failure schemas plus per-activity Temporal options; typed failures skip
+  Temporal retries while defects use the retry policy.
+- **Versioning** — `TemporalVersioning.match` runs patch-marker version
+  chains, letting changed code replay old histories deterministically.
+- **Typed Nexus** — schema-typed Nexus operations backed by Effect workflows,
+  in both directions (workflow-side caller and worker-side handler).
+- **Lint plugin** — `TemporalLint` ships ESLint rules (flat config) that catch
+  sandbox-safety mistakes before they become non-deterministic replay
+  failures.
+- **Idempotency by construction** — a workflow's execution id is a digest of
+  its idempotency key; engine starts use `REJECT_DUPLICATE`, so re-executing a
+  completed execution id attaches to the recorded result instead of running
+  again.
 
-Temporal provides the durable execution runtime. The integration maps the
-Effect workflow surface onto Temporal in these layers:
+## How it works
 
-- `TemporalWorkflowEngine` implements the Effect `WorkflowEngine` interface
-  by starting, polling, interrupting, resuming, and completing Temporal
-  workflow executions.
-- `TemporalClient` wraps `@temporalio/client` in Effect services so Temporal
-  client operations can be composed, provided, retried, and tested like other
-  Effect dependencies.
-- `TemporalWorker` wraps `@temporalio/worker` in Effect services so worker
-  lifecycle management can be acquired and released through `Layer` / `Scope`.
-- `TemporalWorkflowProtocol` defines reserved query and signal names used by
-  the engine and workflow runtime. These include workflow state queries,
-  interrupt / resume signals, deferred completion signals, and clock schedule
-  signals.
-- `TemporalWorkflowRuntime` installs the base Temporal workflow handlers for
-  those protocol queries and signals inside a Temporal workflow isolate.
+Effect workflows are described with `effect/unstable/workflow`: a workflow
+name, payload/success/error schemas, an idempotency key, and an Effect program
+as the body. The integration maps that surface onto Temporal in layers:
 
-The important boundary is that Temporal owns durable scheduling and replay,
-while Effect owns the typed workflow model and dependency graph. A client-side
-Effect program can call `workflow.execute`, `workflow.poll`,
-`workflow.interrupt`, or `workflow.resume`; the Temporal engine translates
-those calls into Temporal workflow start, result, describe, query, and signal
-operations.
+- `TemporalWorkflowEngine` implements the Effect `WorkflowEngine` interface on
+  the client side: starting, polling, interrupting, resuming, and completing
+  Temporal workflow executions.
+- `TemporalWorkflowRuntime.makeWorkflow` turns a workflow definition plus its
+  handler into the Temporal workflow function exported from the worker's
+  workflow bundle. Inside the isolate it runs the body on a sandbox-safe
+  scheduler and serves the reserved protocol queries and signals.
+- `TemporalWorkflowWire` defines the wire format: schema-derived JSON codecs
+  for payloads, results, and deferred exits, and the `EffectWorkflowExit`
+  failure format that carries typed exits through Temporal failures.
+- `TemporalWorkflowProtocol` reserves the `__effect_workflow_*` query and
+  signal names used by the runtime (state, deferreds, clocks, mailboxes,
+  updates, state cells).
 
-## Comparison with Effect workflow engines
+Temporal owns durable scheduling and replay; Effect owns the typed workflow
+model and dependency graph.
 
-`TemporalWorkflowEngine.layer` is intended to be the Temporal-backed
-`WorkflowEngine` layer you provide to Effect workflow programs instead of the
-built-in in-memory engine or the Effect cluster engine. It is not just a
-client-side wrapper, though: a Temporal-backed workflow also needs Temporal
-workers that export workflow functions through `TemporalWorkflowRuntime` and
-activity handlers through `TemporalWorkflowRuntime.makeActivities`.
+Workflow IDs are derived from the workflow tag and execution id —
+`` `${workflowIdPrefix ?? workflowTag}/${executionId}` `` — so a stable Effect
+idempotency key becomes a stable Temporal workflow ID.
 
-| Engine                         | Backing runtime                                | Best for                                                  | Main difference                                                                       |
-| ------------------------------ | ---------------------------------------------- | --------------------------------------------------------- | ------------------------------------------------------------------------------------- |
-| `WorkflowEngine.layerMemory`   | Current process memory                         | Tests, local development, simple single-process workflows | No external infrastructure, but executions are not durable across process death       |
-| `ClusterWorkflowEngine.layer`  | Effect Cluster, sharding, and `MessageStorage` | Effect-native distributed durable workflows               | Durability and routing are implemented through Effect cluster entities and storage    |
-| `TemporalWorkflowEngine.layer` | Temporal server and Temporal workers           | Temporal-backed durable workflow orchestration            | Temporal owns replay, scheduling, task queues, worker execution, signals, and queries |
+### Comparison with Effect's own engines
 
-In practice, swapping from the memory or cluster engine to Temporal means
-providing `TemporalWorkflowEngine.layer` on the client side and running a
-matching Temporal worker process for the same task queue. Workflow code that
-runs inside Temporal must also follow Temporal workflow determinism rules:
-avoid direct network, filesystem, randomness, and wall-clock access in workflow
-code, and move those side effects into activities.
+| Engine                         | Backing runtime                                | Best for                                                  |
+| ------------------------------ | ---------------------------------------------- | --------------------------------------------------------- |
+| `WorkflowEngine.layerMemory`   | Current process memory                         | Tests, local development, single-process workflows        |
+| `ClusterWorkflowEngine.layer`  | Effect Cluster, sharding, and `MessageStorage` | Effect-native distributed durable workflows               |
+| `TemporalWorkflowEngine.layer` | Temporal server and Temporal workers           | Codebases that already run Temporal                       |
 
-Workflow IDs are derived from the Effect workflow name and execution ID:
+Swapping engines means providing `TemporalWorkflowEngine.layer` on the client
+side and running a matching Temporal worker for the same task queue.
+
+## Quick start
+
+### 1. Define the workflow (shared by bundle, worker, and clients)
 
 ```ts
-;`${workflowIdPrefix ?? workflowName}/${executionId}`
-```
-
-This means a stable Effect idempotency key becomes a stable Temporal workflow
-ID, so repeated starts can attach to the existing Temporal execution instead
-of creating a duplicate.
-
-## Defining workflows
-
-The maintained example lives in
-[`packages/workflow/sample/effect-workflow-example.ts`](./packages/workflow/sample/effect-workflow-example.ts).
-It shows the intended `effect/unstable/workflow` shape:
-
-```ts
-import * as Effect from "effect/Effect"
+// workflows/definitions.ts — keep this file sandbox-safe
 import * as Schema from "effect/Schema"
 import * as Workflow from "effect/unstable/workflow/Workflow"
+import * as DurableDeferred from "effect/unstable/workflow/DurableDeferred"
+import * as TemporalTypedActivity from "@effect-temporal/workflow/TemporalTypedActivity"
 
-export const checkoutWorkflow = Workflow.make({
-  name: "CheckoutWorkflow",
-  payload: Schema.Struct({
-    orderId: Schema.String,
-    customerId: Schema.String,
-    totalCents: Schema.Number
-  }),
-  success: Schema.Struct({
-    orderId: Schema.String,
-    chargeId: Schema.String
-  }),
+export class ChargeDeclined extends Schema.TaggedError<ChargeDeclined>()("ChargeDeclined", {
+  code: Schema.Number
+}) {}
+
+export const orderWorkflow = Workflow.make("OrderWorkflow", {
+  payload: { orderId: Schema.String, amountCents: Schema.Number },
+  success: Schema.String,
+  error: ChargeDeclined,
   idempotencyKey: ({ orderId }) => orderId
 })
 
-export const checkoutWorkflowLayer = checkoutWorkflow.toLayer((payload, executionId) =>
-  Effect.gen(function*() {
-    yield* Effect.log("running checkout").pipe(
-      Effect.annotateLogs({ executionId, orderId: payload.orderId })
-    )
-
-    return {
-      orderId: payload.orderId,
-      chargeId: "charge-123"
-    }
-  })
-)
-```
-
-The workflow definition is normal TypeScript, but anything that runs inside a
-Temporal workflow must still follow Temporal workflow restrictions. Keep
-workflow code deterministic, avoid direct network / filesystem / random /
-wall-clock access in workflow code, and move side effects into activities.
-
-## Starting workflows from Effect
-
-Use the Temporal connection and client layers, then provide the Temporal
-workflow engine layer to the Effect workflow program:
-
-```ts
-import { TemporalClient, TemporalConnection, TemporalWorkflowEngine } from "@effect-temporal/workflow"
-import * as Effect from "effect/Effect"
-import * as Layer from "effect/Layer"
-import { checkoutWorkflow } from "./workflows.js"
-
-const temporalLayer = Layer.mergeAll(
-  TemporalConnection.layer({ address: "localhost:7233" }),
-  TemporalClient.layer(),
-  TemporalWorkflowEngine.layer({
-    taskQueue: "checkout",
-    workflowIdPrefix: "checkout"
-  })
-)
-
-const program = checkoutWorkflow.execute({
-  orderId: "ord_123",
-  customerId: "cus_123",
-  totalCents: 4200
+export const chargeCard = TemporalTypedActivity.make("chargeCard", {
+  payload: Schema.Struct({ orderId: Schema.String, amountCents: Schema.Number }),
+  success: Schema.Struct({ receiptId: Schema.String }),
+  error: ChargeDeclined,
+  options: { startToCloseTimeout: "30 seconds", retry: { maximumAttempts: 3 } }
 })
 
-Effect.runPromise(Effect.provide(program, temporalLayer))
+export const managerApproval = DurableDeferred.make("manager-approval", {
+  success: Schema.Struct({ approverId: Schema.String })
+})
 ```
 
-`TemporalWorkflowEngine.layer` needs the task queue that worker processes are
-polling. The optional `workflowIdPrefix` is useful when several applications
-or environments share a Temporal namespace.
-
-## Setting up a Temporal worker
-
-A Temporal worker needs a task queue and a workflow bundle entrypoint. The
-worker process itself can be managed as an Effect application with
-`TemporalWorker.layer`:
+### 2. Write the workflow bundle (runs inside the Temporal sandbox)
 
 ```ts
-import { TemporalWorker } from "@effect-temporal/workflow"
+// workflows/bundle.ts — the file passed to the worker as workflowsPath
+import * as Effect from "effect/Effect"
+import * as DurableDeferred from "effect/unstable/workflow/DurableDeferred"
+import * as TemporalTypedActivity from "@effect-temporal/workflow/TemporalTypedActivity"
+import * as TemporalWorkflowRuntime from "@effect-temporal/workflow/TemporalWorkflowRuntime"
+import { chargeCard, managerApproval, orderWorkflow } from "./definitions.js"
+
+export const OrderWorkflow = TemporalWorkflowRuntime.makeWorkflow({
+  workflow: orderWorkflow,
+  execute: (payload: { readonly orderId: string; readonly amountCents: number }) =>
+    Effect.gen(function*() {
+      const receipt = yield* TemporalTypedActivity.call(chargeCard, payload)
+      const approval = yield* DurableDeferred.await(managerApproval)
+      return `${receipt.receiptId}:approved-by:${approval.approverId}`
+    })
+})
+```
+
+### 3. Run the worker
+
+```ts
+// worker.ts
+import * as TemporalTypedActivity from "@effect-temporal/workflow/TemporalTypedActivity"
+import * as TemporalWorker from "@effect-temporal/workflow/TemporalWorker"
 import * as Effect from "effect/Effect"
 import * as Layer from "effect/Layer"
 import { fileURLToPath } from "node:url"
+import { chargeCard, ChargeDeclined } from "./workflows/definitions.js"
 
-const workflowsPath = fileURLToPath(new URL("./temporal-workflows.js", import.meta.url))
+const activities = TemporalTypedActivity.implement([
+  TemporalTypedActivity.handle(chargeCard, (payload) =>
+    payload.amountCents <= 0
+      ? Effect.fail(new ChargeDeclined({ code: 51 }))
+      : Effect.succeed({ receiptId: `receipt-${payload.orderId}` }))
+])
 
 const workerLayer = Layer.mergeAll(
   TemporalWorker.connectionLayer({ address: "localhost:7233" }),
   TemporalWorker.layer({
-    taskQueue: "checkout",
-    workflowsPath
+    activities,
+    taskQueue: "orders",
+    workflowsPath: fileURLToPath(new URL("./workflows/bundle.js", import.meta.url))
   })
 )
 
-const runWorker = Effect.gen(function*() {
-  const worker = yield* TemporalWorker.TemporalWorker
-  yield* worker.run
-})
-
-Effect.runPromise(Effect.provide(runWorker, workerLayer))
+Effect.runPromise(Effect.provide(
+  Effect.gen(function*() {
+    const worker = yield* TemporalWorker.TemporalWorker
+    yield* worker.run
+  }),
+  workerLayer
+))
 ```
 
-The workflow bundle entrypoint is the file passed as `workflowsPath`. In that
-file, export Temporal workflow functions created by `TemporalWorkflowRuntime`:
+### 4. Drive it from ordinary Node
 
 ```ts
-import { TemporalWorkflowRuntime } from "@effect-temporal/workflow"
-import { checkoutWorkflow, checkoutWorkflowProgram, releaseInventory, reserveInventory } from "./workflows.js"
+// client.ts
+import { TemporalClient, TemporalConnection, TemporalWorkflowEngine } from "@effect-temporal/workflow"
+import * as Effect from "effect/Effect"
+import * as Layer from "effect/Layer"
+import { orderWorkflow } from "./workflows/definitions.js"
 
-export const CheckoutWorkflow = TemporalWorkflowRuntime.makeWorkflow({
-  workflow: checkoutWorkflow,
-  execute: checkoutWorkflowProgram,
-  activityProxy: {
-    options: { startToCloseTimeout: "10 minutes" }
-  }
+const temporalLayer = Layer.mergeAll(
+  TemporalConnection.layer({ address: "localhost:7233" }),
+  TemporalClient.layer(),
+  TemporalWorkflowEngine.layer({ taskQueue: "orders" })
+)
+
+// Typed success and error channels; idempotent by digest id.
+const program = orderWorkflow.execute({ orderId: "ord_123", amountCents: 4200 })
+
+Effect.runPromise(Effect.provide(program, temporalLayer))
+```
+
+A `ChargeDeclined` raised by the activity or the workflow arrives in the
+client's Effect error channel as a real `ChargeDeclined` instance.
+
+For local development: `temporal server start-dev`, then run the worker and
+client with `pnpm tsx`.
+
+## Samples
+
+[`packages/workflow/sample/order-saga`](./packages/workflow/sample/order-saga)
+is a complete, type-checked sample laid out like a production project —
+shared [`definitions.ts`](./packages/workflow/sample/order-saga/definitions.ts),
+the sandbox [`workflows.ts`](./packages/workflow/sample/order-saga/workflows.ts)
+bundle, a [`worker.ts`](./packages/workflow/sample/order-saga/worker.ts), and a
+[`client.ts`](./packages/workflow/sample/order-saga/client.ts) — covering a
+one-shot saga (typed activities, compensation, durable timer, approval
+deferred, child workflow, versioning) and a long-lived subscription entity
+(mailbox, typed updates, state cell, continue-as-new), plus a Nexus-backed
+quote service. Run it against `temporal server start-dev` with `pnpm tsx`.
+
+The e2e suite in [`packages/workflow/test`](./packages/workflow/test)
+exercises every feature against a real Temporal test server and doubles as a
+second usage reference.
+
+## Entity workflows
+
+Long-lived, observable, mutable workflows compose from four primitives, all
+schema-typed end to end:
+
+```ts
+import * as TemporalDurableMailbox from "@effect-temporal/workflow/TemporalDurableMailbox"
+import * as TemporalDurableUpdate from "@effect-temporal/workflow/TemporalDurableUpdate"
+import * as TemporalStateCell from "@effect-temporal/workflow/TemporalStateCell"
+import * as TemporalContinueAsNew from "@effect-temporal/workflow/TemporalContinueAsNew"
+
+// Workflow side
+const message = yield* TemporalDurableMailbox.take(commands)        // durable inbound messages
+const request = yield* TemporalDurableUpdate.take(setPlan)          // typed request/response
+yield* request.succeed({ plan: "pro" })                             // ... or request.fail(typedError)
+yield* TemporalStateCell.set(status, { phase: "active" })           // queryable published state
+yield* TemporalContinueAsNew.continueAsNew(entityWorkflow, next)    // bounded histories
+
+// Client side (TemporalWorkflowInteractions)
+yield* TemporalWorkflowInteractions.offerMailbox(commands, target, { command: "pause" })
+const plan = yield* TemporalWorkflowInteractions.executeUpdate(setPlan, target, { plan: "pro" })
+const snapshot = yield* TemporalWorkflowInteractions.readStateCell(status, target) // works after close too
+```
+
+`DurableDeferred`, `DurableClock.sleep`, child workflows
+(`childWorkflow.execute` in the body), `Workflow.withCompensation`,
+interruption, and suspend/resume all work through the engine as well — see
+the order-saga sample and the e2e suite for working code.
+
+## Versioning workflow code
+
+```ts
+import * as TemporalVersioning from "@effect-temporal/workflow/TemporalVersioning"
+
+TemporalVersioning.match({
+  versions: [
+    { id: "v1", run: oldBehavior }, // oldest first
+    { id: "v2", run: newBehavior }
+  ],
+  legacy: preVersioningBehavior // for histories predating every version
+})
+```
+
+New executions record and take the newest branch; replaying executions follow
+the branch their history recorded. The e2e replays a generation-1 history
+against generation-2 code with `Worker.runReplayHistory` to prove it.
+
+## Nexus
+
+```ts
+// Shared definition (sandbox-safe)
+const getQuote = TemporalNexusOperation.make("quote-service", "getQuote", {
+  payload: QuoteRequest,
+  success: Quote,
+  error: QuoteRejected
 })
 
-export const activities = TemporalWorkflowRuntime.makeActivities(
-  checkoutWorkflow,
-  [reserveInventory, releaseInventory]
-)
+// Worker: back the operation with an Effect workflow
+const worker = { nexusServices: [TemporalNexusService.workflowRunOperation(getQuote, quoteWorkflow)] }
+
+// Any workflow (cross-namespace): typed call, typed failure channel
+const quote = yield* TemporalNexusOperation.call(getQuote, { endpoint: "quotes" }, request)
 ```
 
-For local development, start Temporal first, then run one or more worker
-processes for the task queue:
+## Testing
 
-```sh
-temporal server start-dev
-pnpm tsx ./path/to/worker.ts
+`@effect-temporal/testing` provides two levels:
+
+```ts
+// Integration: one scoped call boots the test server, a worker, and an engine
+const harness = yield* TemporalTesting.makeWorkflowTestHarness({ workflowsPath, activities })
+const result = yield* harness.provide(orderWorkflow.execute(payload))
+
+// Unit: drive client-side code with zero servers; every interaction is recorded
+const stub = TemporalTesting.makeStubTemporalClient({ resultFor: () => "done" })
+// ... Effect.provide(stub.layer); assert on stub.recorded.starts / signals / queries
 ```
 
-Then start workflows from a client process that uses the same Temporal address,
-namespace, and task queue.
+Lower-level building blocks (`makeTimeSkipping`, `makeLocal`, `makeTaskQueue`,
+`workflowEngineLayer`, `runWorkerUntil`, ...) remain available for custom
+setups.
+
+## Determinism
+
+Workflow bundles run in Temporal's deterministic sandbox. The runtime handles
+scheduling and missing globals automatically, but application code must stay
+deterministic too: no direct network, filesystem, randomness, or wall-clock
+access in workflow code — put side effects in activities. Two guardrails help:
+
+- The reserved `__effect_workflow_*` query/signal names must not be reused by
+  application code.
+- `TemporalLint` (exported from `@effect-temporal/workflow/TemporalLint`)
+  enforces the rest in CI — apply its `recommended` preset to your workflow
+  bundle files:
+
+```ts
+// eslint.config.mjs
+import { plugin as effectTemporal } from "@effect-temporal/workflow/TemporalLint"
+
+export default [
+  {
+    files: ["src/workflows/**"],
+    plugins: { "effect-temporal": effectTemporal },
+    rules: effectTemporal.configs.recommended.rules
+  }
+]
+```
 
 ## Deployment considerations
 
-- **Current package status:** the runtime adapter covers the sample's core
-  workflow execution, activity, durable deferred, durable clock, and child
-  workflow paths. The repository has initial live Temporal e2e coverage for
-  `TemporalWorker` / `TemporalClient` through `@temporalio/testing`; broader
-  live coverage for the full Effect workflow-runtime surface remains the main
-  validation gap.
-- **Determinism:** workflow code is replayed by Temporal. Do not call
-  non-deterministic APIs directly from workflow code. Use Temporal workflow
-  APIs or activities for time, randomness, network calls, database calls, and
-  other side effects.
-- **Worker isolation:** code imported by `workflowsPath` runs in Temporal's
-  workflow isolate. Keep Node-only APIs and regular Effect services out of that
-  bundle unless they are explicitly workflow-safe.
-- **Activities:** activity bridging runs through `TemporalWorkflowRuntime`
-  activity proxies. Keep production side effects behind Temporal activities.
-- **Signals and queries:** the integration reserves query / signal names that
-  start with `__effect_workflow_`. Avoid reusing those names in application
-  workflow code.
-- **Workflow IDs:** choose idempotency keys carefully. Reusing the same
-  execution ID for the same workflow name resolves to the same Temporal
-  workflow ID.
+- **Determinism:** workflow code is replayed by Temporal; keep it
+  deterministic and move side effects into activities (see above).
+- **Worker isolation:** code imported by `workflowsPath` runs in the workflow
+  isolate. Keep client/worker-side modules and Node-only APIs out of that
+  bundle — the `no-mixed-halves` lint rule checks this.
+- **Workflow IDs and idempotency:** the same idempotency key resolves to the
+  same Temporal workflow ID, and completed execution ids return their recorded
+  result (`REJECT_DUPLICATE`). Choose idempotency keys accordingly.
+- **Protocol compatibility:** the reserved query/signal payloads are a
+  versioned wire format. Upgrade workers and clients together; in-flight runs
+  started on an older protocol version are not guaranteed compatible.
 - **Task queues:** clients and workers must agree on the task queue. Use
-  separate queues for independently deployable worker groups or incompatible
-  workflow versions.
-- **Versioning:** Temporal may replay old workflow histories against new code.
-  Avoid changing workflow behavior in ways that break replay. Use Temporal's
-  workflow versioning patterns when deploying incompatible changes.
-- **Payloads:** schemas describe the Effect workflow boundary, but Temporal
-  still serializes payloads across the client / worker boundary. Keep payloads
-  serializable and plan codec evolution for long-lived workflows.
-
-## Running Code
-
-This project leverages [tsx](https://tsx.is) to allow execution of TypeScript files via NodeJS as if they were written in plain JavaScript.
-
-To execute a file with `tsx`:
-
-```sh
-pnpm tsx ./path/to/the/file.ts
-```
+  separate queues for independently deployable worker groups.
+- **Versioning:** use `TemporalVersioning.match` when changing workflow
+  behavior so old histories keep replaying against new code.
 
 ## Operations
 
-**Building**
-
-To build all packages in the monorepo:
-
 ```sh
-pnpm build
+pnpm build   # build all packages
+pnpm check   # typecheck
+pnpm lint    # lint
+pnpm test    # run all tests (live e2e tests boot a Temporal test server)
 ```
 
-**Testing**
-
-To test all packages in the monorepo:
-
-```sh
-pnpm test
-```
+TypeScript files can be executed directly with [tsx](https://tsx.is):
+`pnpm tsx ./path/to/file.ts`.
