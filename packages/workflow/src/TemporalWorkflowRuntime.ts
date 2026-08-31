@@ -4,6 +4,7 @@
 import { ensureSandboxPolyfills, sandboxScheduler } from "./TemporalSandbox.js"
 
 import {
+  CancellationScope,
   condition,
   defineQuery,
   defineSignal,
@@ -18,6 +19,7 @@ import {
 import * as Duration from "effect/Duration"
 import * as Effect from "effect/Effect"
 import * as Exit from "effect/Exit"
+import * as Fiber from "effect/Fiber"
 import * as Option from "effect/Option"
 import * as Schema from "effect/Schema"
 import * as Activity from "effect/unstable/workflow/Activity"
@@ -93,6 +95,9 @@ export interface TemporalWorkflowRuntimeState {
   result: TemporalWorkflowState["result"]
   readonly deferreds: Map<string, unknown>
   readonly clocks: Map<string, ScheduleClockSignal>
+  readonly activityResults: Map<string, Workflow.ResultEncoded<unknown, unknown>>
+  readonly inFlight: Set<CancellationScope>
+  runScope?: CancellationScope | undefined
 }
 
 /**
@@ -108,7 +113,9 @@ export const makeRuntimeState = (
   resumed: false,
   result: undefined,
   deferreds: new Map(),
-  clocks: new Map()
+  clocks: new Map(),
+  activityResults: new Map(),
+  inFlight: new Set()
 })
 
 /**
@@ -158,8 +165,10 @@ export const installBaseHandlers = (
 export const waitForResume = async (
   state: TemporalWorkflowRuntimeState
 ): Promise<void> => {
-  await condition(() => state.resumed)
-  state.resumed = false
+  await condition(() => state.resumed || state.interrupted)
+  if (state.resumed) {
+    state.resumed = false
+  }
 }
 
 /**
@@ -300,16 +309,42 @@ const makeRuntimeEngine = (
       if (invoke === undefined) {
         return yield* unsupported(`Temporal activity "${activity.name}" is not registered on the worker`)
       }
+      // Memoize completed results so a resumed run does not re-schedule
+      // activities that already finished in an earlier pass of the body.
+      const memoKey = `${activity.name}/${attempt}`
+      const cached = state.activityResults.get(memoKey)
+      if (cached !== undefined) {
+        return decodeWorkflowResult(cached) as Workflow.Result<unknown, unknown>
+      }
       const instance = yield* WorkflowEngine.WorkflowInstance
+      // Each call gets its own cancellation scope so an interrupt or a
+      // Temporal cancellation can cancel the scheduled activity itself. The
+      // parent is the non-cancellable run scope: compensation activities
+      // scheduled after a cancellation must still be able to run.
+      const scope = new CancellationScope(
+        state.runScope === undefined
+          ? undefined
+          : { cancellable: true, parent: state.runScope }
+      )
+      state.inFlight.add(scope)
       const encoded = yield* Effect.tryPromise({
         try: () =>
-          invoke({
-            executionId: instance.executionId,
-            attempt
-          }),
+          scope.run(() =>
+            invoke({
+              executionId: instance.executionId,
+              attempt
+            })
+          ),
         catch: (cause) => new Error(`Temporal activity "${activity.name}" failed`, { cause })
-      }).pipe(Effect.orDie)
-      return decodeWorkflowResult(encoded) as Workflow.Result<unknown, unknown>
+      }).pipe(
+        Effect.orDie,
+        Effect.onExit(() => Effect.sync(() => state.inFlight.delete(scope)))
+      )
+      const result = decodeWorkflowResult(encoded) as Workflow.Result<unknown, unknown>
+      if (result._tag === "Complete") {
+        state.activityResults.set(memoKey, encoded)
+      }
+      return result
     }),
     deferredResult: (deferred) =>
       Effect.sync(() => {
@@ -361,36 +396,90 @@ export const makeWorkflow = <Payload, Success, Error, R>(
     installBaseHandlers(state)
     const decodedPayload = codecs.decodePayload(payload) as Payload
 
-    while (true) {
-      const instance = WorkflowEngine.WorkflowInstance.initial(options.workflow, executionId)
-      instance.interrupted = state.interrupted
-      const engine = makeRuntimeEngine(state, activityCaller)
-      const base = options.execute(decodedPayload, executionId).pipe(
-        Workflow.intoResult,
-        Effect.provideService(WorkflowEngine.WorkflowEngine, engine),
-        Effect.provideService(WorkflowEngine.WorkflowInstance, instance)
-      )
-      const program = options.provide === undefined ? base : options.provide(base)
-      const result = await Effect.runPromise(
-        program as Effect.Effect<Workflow.Result<Success, Error>, never, never>,
-        { scheduler: sandboxScheduler }
-      )
+    // The run executes inside a non-cancellable scope so a Temporal
+    // cancellation is observed by the Effect runtime (finalizers and
+    // compensation run) instead of tearing down awaited commands directly.
+    return CancellationScope.nonCancellable(async () => {
+      state.runScope = CancellationScope.current()
+      let cancelledFailure: unknown
+      let activeInstance: WorkflowEngine.WorkflowInstance["Service"] | undefined
+      let activeFiber: Fiber.Fiber<Workflow.Result<Success, Error>, never> | undefined
 
-      if (result._tag === "Complete") {
-        state.status = "completed"
-        state.result = codecs.encodeResult(result)
-        if (result.exit._tag === "Success") {
-          return codecs.encodeSuccess(result.exit.value) as Success
+      const onInterrupted = (): void => {
+        if (activeInstance !== undefined) {
+          activeInstance.interrupted = true
+          activeInstance.suspended = false
         }
-        throw encodeWorkflowFailure(options.workflow, result, result.exit.cause)
+        for (const scope of state.inFlight) {
+          scope.cancel()
+        }
+        activeFiber?.interruptUnsafe()
       }
 
-      state.status = "suspended"
-      state.result = codecs.encodeResult(result)
-      await waitForResume(state)
-      state.result = undefined
-      state.status = "running"
-    }
+      void CancellationScope.current().cancelRequested.catch((failure) => {
+        cancelledFailure = failure
+        state.interrupted = true
+        state.resumed = false
+        state.status = "suspended"
+        onInterrupted()
+      })
+      void condition(() => state.interrupted).then(onInterrupted)
+
+      while (true) {
+        const instance = WorkflowEngine.WorkflowInstance.initial(options.workflow, executionId)
+        instance.interrupted = state.interrupted
+        activeInstance = instance
+        const engine = makeRuntimeEngine(state, activityCaller)
+        const base = options.execute(decodedPayload, executionId).pipe(
+          Effect.onExit(() => {
+            if (!state.interrupted) {
+              return Effect.void
+            }
+            instance.interrupted = true
+            instance.suspended = false
+            return Effect.withFiber((fiber) => Effect.interruptible(Fiber.interrupt(fiber)))
+          }),
+          Workflow.intoResult,
+          Effect.provideService(WorkflowEngine.WorkflowEngine, engine),
+          Effect.provideService(WorkflowEngine.WorkflowInstance, instance)
+        )
+        const program = options.provide === undefined ? base : options.provide(base)
+        const fiber = Effect.runFork(
+          program as Effect.Effect<Workflow.Result<Success, Error>, never, never>,
+          { scheduler: sandboxScheduler }
+        )
+        activeFiber = fiber
+        const exit = await new Promise<Exit.Exit<Workflow.Result<Success, Error>, never>>((resolve) =>
+          fiber.addObserver(resolve)
+        )
+        activeFiber = undefined
+        activeInstance = undefined
+
+        const result: Workflow.Result<Success, Error> = Exit.isSuccess(exit)
+          ? exit.value
+          : new Workflow.Complete({ exit: Exit.failCause(exit.cause) }) as Workflow.Result<Success, Error>
+
+        if (result._tag === "Complete") {
+          state.status = "completed"
+          state.result = codecs.encodeResult(result)
+          if (cancelledFailure === undefined && result.exit._tag === "Success") {
+            return codecs.encodeSuccess(result.exit.value) as Success
+          }
+          if (cancelledFailure !== undefined) {
+            throw cancelledFailure
+          }
+          throw encodeWorkflowFailure(options.workflow, result, (result.exit as Exit.Failure<Success, Error>).cause)
+        }
+
+        state.status = "suspended"
+        state.result = codecs.encodeResult(result)
+        await waitForResume(state)
+        state.result = undefined
+        if (!state.interrupted) {
+          state.status = "running"
+        }
+      }
+    })
   }
 }
 

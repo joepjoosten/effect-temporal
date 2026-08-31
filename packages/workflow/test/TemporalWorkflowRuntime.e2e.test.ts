@@ -1,5 +1,6 @@
 import * as TemporalTesting from "@effect-temporal/testing"
 import { describe, expect, it } from "@effect/vitest"
+import * as Cause from "effect/Cause"
 import * as Effect from "effect/Effect"
 import * as Exit from "effect/Exit"
 import * as Option from "effect/Option"
@@ -9,6 +10,8 @@ import { fileURLToPath } from "node:url"
 import {
   activities,
   approvalWorkflow,
+  compensationLog,
+  compensationWorkflow,
   failingWorkflow,
   managerApproval,
   OrderRejected,
@@ -133,5 +136,40 @@ describe("TemporalWorkflowRuntime e2e", () => {
     expect((result as Workflow.Result<string, never> & { _tag: "Complete" }).exit).toEqual(
       Exit.succeed("ord-1:approved-by:boss")
     )
+  }, 120_000)
+
+  it("runs compensation when a suspended workflow is interrupted", async () => {
+    const payload = { orderId: "ord-interrupt" }
+    compensationLog.length = 0
+
+    const result = await runWithWorker((_taskQueue) =>
+      Effect.gen(function*() {
+        const executionId = yield* compensationWorkflow.executionId(payload)
+        yield* compensationWorkflow.execute(payload, { discard: true })
+
+        yield* pollUntil(
+          compensationWorkflow.poll(executionId),
+          (status) => Option.isSome(status) && status.value._tag === "Suspended"
+        )
+        yield* compensationWorkflow.interrupt(executionId)
+
+        const completed = yield* pollUntil(
+          compensationWorkflow.poll(executionId),
+          (status) => Option.isSome(status) && status.value._tag === "Complete"
+        )
+        return Option.getOrThrow(completed) as Workflow.Result<string, never>
+      }).pipe(Effect.orDie)
+    )
+
+    expect(result._tag).toBe("Complete")
+    const exit = (result as Workflow.Result<string, never> & { _tag: "Complete" }).exit
+    expect(Exit.isFailure(exit)).toBe(true)
+    expect(Cause.hasInterruptsOnly((exit as Exit.Failure<string, never>).cause)).toBe(true)
+
+    expect(compensationLog).toContain("reserve")
+    expect(compensationLog).toContain("release")
+    // Activity memoization: the resumed pass must not re-run the reserve
+    // activity before compensation.
+    expect(compensationLog.filter((entry) => entry === "reserve")).toHaveLength(1)
   }, 120_000)
 })

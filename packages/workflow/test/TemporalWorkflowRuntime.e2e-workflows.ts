@@ -88,4 +88,52 @@ export const RuntimeE2EApprovalWorkflow = TemporalWorkflowRuntime.makeWorkflow({
     })
 })
 
-export const activities = TemporalWorkflowRuntime.makeActivities(runtimeWorkflow, [appendActivity])
+// Observed from the test process: reserve/release run as worker-side
+// activities in the same Node process as the test.
+export const compensationLog: Array<string> = []
+
+export const reserveActivity = Activity.make({
+  name: "reserveActivity",
+  success: Schema.String,
+  execute: Effect.sync(() => {
+    compensationLog.push("reserve")
+    return "reservation-1"
+  })
+})
+
+export const releaseActivity = Activity.make({
+  name: "releaseActivity",
+  execute: Effect.sync(() => {
+    compensationLog.push("release")
+  })
+})
+
+export const neverApproval = DurableDeferred.make("never-approval", {
+  success: Schema.String
+})
+
+export const compensationWorkflow = Workflow.make("RuntimeE2ECompensationWorkflow", {
+  payload: {
+    orderId: Schema.String
+  },
+  success: Schema.String,
+  idempotencyKey: ({ orderId }) => orderId
+})
+
+export const RuntimeE2ECompensationWorkflow = TemporalWorkflowRuntime.makeWorkflow({
+  workflow: compensationWorkflow,
+  execute: (payload: { readonly orderId: string }) =>
+    Effect.gen(function*() {
+      const reservation = yield* compensationWorkflow.withCompensation(
+        reserveActivity,
+        () => releaseActivity
+      )
+      const approval = yield* DurableDeferred.await(neverApproval)
+      return `${payload.orderId}:${reservation}:${approval}`
+    })
+})
+
+export const activities = {
+  ...TemporalWorkflowRuntime.makeActivities(runtimeWorkflow, [appendActivity]),
+  ...TemporalWorkflowRuntime.makeActivities(compensationWorkflow, [reserveActivity, releaseActivity])
+}
