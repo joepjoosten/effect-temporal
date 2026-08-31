@@ -99,6 +99,24 @@ export const scheduleClockSignalName = "__effect_workflow_schedule_clock"
 export const stateCellQueryName = "__effect_workflow_state_cell"
 
 /**
+ * @since 1.0.0
+ * @category Constants
+ */
+export const mailboxSignalName = "__effect_workflow_mailbox"
+
+/**
+ * Mailbox message signal. `payload` is the schema-encoded JSON form of the
+ * message.
+ *
+ * @since 1.0.0
+ * @category Models
+ */
+export interface MailboxSignal {
+  readonly name: string
+  readonly payload: unknown
+}
+
+/**
  * State-cell lookup response. `value` is the schema-encoded JSON form of the
  * cell's current value.
  *

@@ -13,9 +13,16 @@ import * as Option from "effect/Option"
 import type * as Schema from "effect/Schema"
 import type * as Workflow from "effect/unstable/workflow/Workflow"
 import * as TemporalClient from "./TemporalClient.js"
+import type { TemporalDurableMailbox } from "./TemporalDurableMailbox.js"
 import type { TemporalClientError } from "./TemporalError.js"
 import type { TemporalStateCell } from "./TemporalStateCell.js"
-import { stateCellQueryName, type TemporalStateCellResult, workflowIdFor } from "./TemporalWorkflowProtocol.js"
+import {
+  type MailboxSignal,
+  mailboxSignalName,
+  stateCellQueryName,
+  type TemporalStateCellResult,
+  workflowIdFor
+} from "./TemporalWorkflowProtocol.js"
 
 /**
  * Options addressing one workflow execution, mirroring the
@@ -55,4 +62,29 @@ export const readStateCell = <Value extends Schema.Top>(
     return result.found
       ? Option.some(cell.codecs.decode(result.value) as Value["Type"])
       : Option.none()
+  })
+
+/**
+ * Offers a schema-typed message to a running workflow's durable mailbox. The
+ * message is validated and encoded before the signal is sent.
+ *
+ * @since 1.0.0
+ * @category Mailboxes
+ */
+export const offerMailbox = <Payload extends Schema.Top>(
+  mailbox: TemporalDurableMailbox<Payload>,
+  target: WorkflowTarget,
+  message: Payload["Type"]
+): Effect.Effect<void, TemporalClientError, TemporalClient.TemporalWorkflowClient> =>
+  Effect.gen(function*() {
+    const client = yield* TemporalClient.TemporalWorkflowClient
+    yield* client.getHandle(
+      workflowIdFor(target.workflow._tag, target.executionId, target.workflowIdPrefix)
+    ).signal(
+      mailboxSignalName,
+      {
+        name: mailbox.name,
+        payload: mailbox.codecs.encode(message)
+      } satisfies MailboxSignal
+    )
   })

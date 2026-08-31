@@ -28,6 +28,7 @@ import * as Workflow from "effect/unstable/workflow/Workflow"
 import * as WorkflowEngine from "effect/unstable/workflow/WorkflowEngine"
 import type {
   CompleteDeferredSignal,
+  MailboxSignal,
   ScheduleClockSignal,
   TemporalDeferredResult,
   TemporalStateCellResult,
@@ -37,6 +38,7 @@ import {
   completeDeferredSignalName,
   deferredResultQueryName,
   interruptSignalName,
+  mailboxSignalName,
   resumeSignalName,
   scheduleClockSignalName,
   stateCellQueryName,
@@ -94,6 +96,12 @@ export const stateCellQuery = defineQuery<TemporalStateCellResult, [name: string
 
 /**
  * @since 1.0.0
+ * @category Protocol
+ */
+export const mailboxSignal = defineSignal<[MailboxSignal]>(mailboxSignalName)
+
+/**
+ * @since 1.0.0
  * @category Models
  */
 export interface TemporalWorkflowRuntimeState {
@@ -107,6 +115,13 @@ export interface TemporalWorkflowRuntimeState {
   readonly activityResults: Map<string, Workflow.ResultEncoded<unknown, unknown>>
   readonly inFlight: Set<CancellationScope>
   readonly stateCells: Map<string, unknown>
+  /**
+   * Append-only log of received mailbox messages per mailbox name; consumed
+   * positions are tracked separately in `mailboxCursors` so a resumed pass of
+   * the workflow body replays takes deterministically.
+   */
+  readonly mailboxLogs: Map<string, Array<unknown>>
+  readonly mailboxCursors: Map<string, number>
   runScope?: CancellationScope | undefined
 }
 
@@ -145,7 +160,9 @@ export const makeRuntimeState = (
   clocks: new Map(),
   activityResults: new Map(),
   inFlight: new Set(),
-  stateCells: new Map()
+  stateCells: new Map(),
+  mailboxLogs: new Map(),
+  mailboxCursors: new Map()
 })
 
 /**
@@ -191,6 +208,14 @@ export const installBaseHandlers = (
     return value === undefined
       ? { found: false }
       : { found: true, value }
+  })
+  setHandler(mailboxSignal, ({ name, payload }) => {
+    let log = state.mailboxLogs.get(name)
+    if (log === undefined) {
+      log = []
+      state.mailboxLogs.set(name, log)
+    }
+    log.push(payload)
   })
 }
 
@@ -462,6 +487,9 @@ export const makeWorkflow = <Payload, Success, Error, R>(
       void condition(() => state.interrupted).then(onInterrupted)
 
       while (true) {
+        // Each pass of the body replays consumed mailbox messages from the
+        // start of the log.
+        state.mailboxCursors.clear()
         const instance = WorkflowEngine.WorkflowInstance.initial(options.workflow, executionId)
         instance.interrupted = state.interrupted
         activeInstance = instance
