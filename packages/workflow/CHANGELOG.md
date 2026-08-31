@@ -1,5 +1,68 @@
 # @effect-temporal/workflow
 
+## 0.1.4
+
+### Patch Changes
+
+- [#36](https://github.com/joepjoosten/effect-temporal/pull/36) [`b491a87`](https://github.com/joepjoosten/effect-temporal/commit/b491a8712c72e9f34e34f8e9b348e595d966ac0a) Thanks [@joepjoosten](https://github.com/joepjoosten)! - Cancellation and compensation semantics for the workflow runtime:
+
+  - The workflow body now runs inside a non-cancellable Temporal scope; a
+    Temporal cancellation is observed by the Effect runtime — the handler fiber
+    is interrupted so finalizers and `withCompensation` handlers run — and the
+    run then closes as Cancelled by rethrowing the `CancelledFailure`.
+  - The reserved interrupt signal now interrupts the live workflow fiber
+    (matching Effect's in-memory engine semantics: `instance.interrupted` set,
+    suspension cleared), so an interrupt lands as a `Complete` result with an
+    interrupted exit after compensation has run, instead of waiting for the
+    next suspension point.
+  - Every activity call gets its own cancellation scope, tracked per run: an
+    interrupt or cancellation cancels in-flight scheduled activities, while
+    compensation activities scheduled afterwards run in fresh scopes parented
+    to the non-cancellable run scope.
+  - Completed activity results are memoized per attempt in run state, so a
+    resumed pass of the workflow body no longer re-schedules (and re-executes)
+    activities that already finished.
+
+- [#34](https://github.com/joepjoosten/effect-temporal/pull/34) [`4daf050`](https://github.com/joepjoosten/effect-temporal/commit/4daf050a6e7bc5954a209c0b0751959fe176c9b1) Thanks [@joepjoosten](https://github.com/joepjoosten)! - Make the workflow runtime deterministic inside the Temporal sandbox:
+
+  - `TemporalWorkflowRuntime.makeWorkflow` now runs workflow bodies on a
+    microtask-based fiber scheduler, so fiber yields never fall back to
+    `setTimeout` — which is a durable Temporal timer in the sandbox — and no
+    longer append timer events to workflow history.
+  - New `TemporalSandboxPolyfills` module (installed automatically by the
+    runtime) provides `crypto.subtle.digest` (SHA-256), `crypto.getRandomValues`,
+    and `TextEncoder` inside the workflow isolate, byte-pinned against Node so
+    execution ids hashed in the sandbox match ids computed client-side, and pins
+    `performance` to the deterministic sandbox clock.
+  - Fixed workflow identification: the engine and runtime now key workflows by
+    `workflow._tag` instead of `workflow.name`, which always evaluated to the
+    string `"Workflow"` and broke workflow-type routing end to end.
+  - Added the first live end-to-end test covering `TemporalWorkflowEngine` +
+    `TemporalWorkflowRuntime`: an Effect workflow body with an activity call and
+    a child workflow, asserting no scheduler timers appear in history.
+
+- [#35](https://github.com/joepjoosten/effect-temporal/pull/35) [`5d318df`](https://github.com/joepjoosten/effect-temporal/commit/5d318df5906b1e29e39615ada2df38f961b819f3) Thanks [@joepjoosten](https://github.com/joepjoosten)! - Typed wire protocol across all Temporal boundaries. Every value crossing the
+  isolate boundary is now schema-encoded JSON derived from the workflow's own
+  payload, success, and error schemas (`TemporalWorkflowWire`):
+
+  - Workflow payloads are encoded before start / child-workflow calls and
+    decoded inside the sandbox, so schema types (tagged errors, transformations)
+    survive the boundary instead of being mangled by the payload converter.
+  - A failing workflow now fails the Temporal run with a non-retryable
+    `ApplicationFailure` of type `EffectWorkflowExit` carrying the encoded
+    `Workflow.Result` in `details[0]`. The client engine and the child-workflow
+    path decode it back, so typed errors land in the Effect error channel as
+    real schema class instances, and runs show as failed in the Temporal UI.
+  - Durable-deferred exits ride signals and queries as canonical JSON
+    (`encodeDeferredExit` / `decodeDeferredExit`) instead of raw structural
+    `Exit` objects.
+  - `poll` now decodes the suspended workflow state, returning
+    `Workflow.Suspended` including its cause instead of always `undefined`.
+
+  This changes the reserved query/signal payload formats, so workers and clients
+  must be upgraded together; in-flight workflow runs started on the previous
+  protocol are not compatible.
+
 ## 0.1.3
 
 ### Patch Changes
