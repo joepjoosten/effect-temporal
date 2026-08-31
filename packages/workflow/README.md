@@ -1,135 +1,69 @@
 # `@effect-temporal/workflow`
 
-Effect v4 integration for Temporal.
+Run Effect workflows (`effect/unstable/workflow`) on Temporal: a
+`WorkflowEngine` implementation, the deterministic sandbox runtime, and the
+primitives for entity workflows, typed activities, versioning, and Nexus.
 
-## Current Scope
+See the [repository README](https://github.com/joepjoosten/effect-temporal)
+for the full quick start. [`sample/order-saga`](./sample/order-saga) is a
+complete, type-checked sample (definitions / bundle / worker / client)
+covering a saga, a long-lived entity, and a Nexus service; the e2e suite in
+[`test/`](./test) exercises every feature against a real Temporal test server
+and doubles as a second usage reference.
 
-This package currently provides:
+## Modules
 
-- Worker/runtime integration for Temporal-backed Effect workflows
-- Compatibility re-exports for client connection and workflow client layers from `@effect-temporal/client`
-- Effect-wrapped Temporal worker connection / worker layers
-- Shared Temporal workflow protocol primitives for signals / queries
-- Workflow metadata / registration primitives based on `effect/unstable/workflow`
-- A client-side `WorkflowEngine` adapter for starting, polling, interrupting, resuming, and completing Temporal-backed workflows
-- A Temporal workflow-side runtime adapter for running Effect workflow handlers
-- Activity handler bridging for `Activity.make(...)` definitions
-- Runtime state support for `DurableDeferred` and `DurableClock`
-- Nested workflow execution through Temporal child workflows
+| Module                          | Side          | What it does                                                                                                       |
+| ------------------------------- | ------------- | ------------------------------------------------------------------------------------------------------------------ |
+| `TemporalWorkflowEngine`        | client        | The Effect `WorkflowEngine` over Temporal: start (idempotent, `REJECT_DUPLICATE`), poll, interrupt, resume          |
+| `TemporalWorkflowRuntime`       | sandbox       | `makeWorkflow` / `makeActivities`; the run loop, protocol handlers, and the `TemporalSandboxRun` service            |
+| `TemporalWorkflowWire`          | shared        | Schema-derived JSON codecs for payloads, results, and deferred exits; the `EffectWorkflowExit` failure format       |
+| `TemporalWorkflowProtocol`      | shared        | Reserved `__effect_workflow_*` query/signal names and payload shapes                                                |
+| `TemporalSandbox` / `...Polyfills` | sandbox    | Microtask fiber scheduler and sandbox polyfills (SHA-256, `getRandomValues`, `TextEncoder`, pinned `performance`)   |
+| `TemporalTypedActivity`         | shared/worker | Activities with explicit payload/success/error schemas and per-activity options; `call` + `handle`/`implement`      |
+| `TemporalStateCell`             | shared        | Queryable published workflow state (`set` in the body; read via `TemporalWorkflowInteractions.readStateCell`)       |
+| `TemporalDurableMailbox`        | shared        | Typed inbound message channels: `take`/`poll` in the body, workflow-to-workflow `offer`                             |
+| `TemporalDurableUpdate`         | shared        | Typed request/response updates with a schema'd failure channel                                                      |
+| `TemporalContinueAsNew`         | sandbox       | Continue the workflow as a new run with a schema-encoded payload                                                    |
+| `TemporalVersioning`            | sandbox       | `patched`/`deprecatePatch` as Effects and the `match` version-chain combinator                                      |
+| `TemporalNexusOperation`        | shared        | Schema-typed Nexus operation definitions and the workflow-side `call`                                               |
+| `TemporalNexusService`          | worker        | `workflowRunOperation`: back a Nexus operation with an Effect workflow (`nexusServices` handler)                    |
+| `TemporalWorkflowInteractions`  | client        | Client-side entity interactions: `readStateCell`, `offerMailbox`, `executeUpdate`                                   |
+| `TemporalWorker`                | worker        | Effect service/Layer for the Temporal worker lifecycle                                                              |
+| `TemporalLint`                  | tooling       | ESLint plugin (flat config) enforcing workflow-sandbox safety, with a `recommended` preset                          |
+| `TemporalClient` / `TemporalConnection` | client | Re-exports from `@effect-temporal/client` for convenience                                                           |
 
-## Planned Next Steps
+## Authoring model
 
-1. Replace the provisional query / signal payloads with deterministic typed codecs across client and worker boundaries.
-2. Expand end-to-end tests against Temporal test infrastructure beyond the initial worker/client path.
-3. Expand lifecycle parity coverage for interruption, failure suspension, compensation, child workflows, and live worker behavior.
-4. Document package-local worker setup and runtime examples as the Temporal e2e harness grows.
+Definitions (workflows, typed activities, mailboxes, updates, state cells,
+Nexus operations) are plain schema'd values in sandbox-safe modules, shared by
+the workflow bundle, the worker, and every client — the sides cannot drift.
+The bundle exports Temporal workflow functions via
+`TemporalWorkflowRuntime.makeWorkflow`; the worker registers activity
+implementations (`TemporalTypedActivity.implement`, or
+`TemporalWorkflowRuntime.makeActivities` for `Activity.make` definitions) and
+optional `nexusServices`; clients provide `TemporalWorkflowEngine.layer` and
+call `workflow.execute` / `poll` / `interrupt` like with any other Effect
+engine.
 
-## Status
+Everything crossing a Temporal boundary is schema-encoded JSON, and typed
+failures round-trip: a workflow or activity failing with its schema'd error
+lands in the reading side's Effect error channel as a real class instance,
+while the run shows as failed in the Temporal UI.
 
-The package now has worker, protocol, workflow-runtime, activity-bridge, durable deferred / clock, and child workflow support for the Effect workflow surface used by the sample. Client-side services live in `@effect-temporal/client` and are re-exported here for compatibility.
+## Determinism
 
-The remaining gap is validation breadth: the current repository includes initial Temporal test-server end-to-end coverage for the worker/client path, but the full runtime bridge still needs broader live Temporal e2e verification across activities, deferreds, durable clocks, lifecycle signals, and child workflows.
+Bodies run on a microtask-based fiber scheduler (fiber yields never create
+Temporal timers), sandbox polyfills are installed automatically, and per-run
+state (activity/child results, mailbox and update logs) is replayed
+deterministically across resumed passes. Application code must still follow
+Temporal's determinism rules — apply the `TemporalLint` recommended preset to
+workflow bundle files to enforce them, and never reuse the reserved
+`__effect_workflow_*` query/signal names.
 
-## Runtime Adapter
+## Testing
 
-The workflow-side adapter lives in `TemporalWorkflowRuntime`:
-
-- `makeWorkflow(options)` creates a Temporal workflow function from an Effect `Workflow` definition and handler.
-- `makeActivities(workflow, activities, options?)` converts `Activity.make(...)` definitions into Temporal worker activity handlers.
-- The runtime engine bridges workflow-side Effect activities to Temporal activities or local activities via `activityProxy`.
-- Durable deferred completions and durable clocks are stored in workflow runtime state and resume suspended workflow execution.
-- Nested workflow execution is mapped to Temporal child workflows.
-- `makeRuntimeState(executionId)` and `installBaseHandlers(state)` install the shared query / signal protocol for workflow state, deferred completion, interruption, resume, and clock scheduling.
-
-The client-side adapter lives in `TemporalWorkflowEngine` and is used by normal Effect workflow programs to start, poll, interrupt, resume, complete deferreds, and schedule durable clocks against Temporal workflow executions.
-
-## Testing Temporal-backed workflows
-
-Use `@effect-temporal/testing` for tests that should run against Temporal test
-infrastructure without repeating connection, namespace, task queue, and worker
-setup in every test file.
-
-```ts
-import * as TemporalTesting from "@effect-temporal/testing"
-import { describe, expect, it } from "@effect/vitest"
-import * as Effect from "effect/Effect"
-
-describe("checkout workflow", () => {
-  it("runs with a Temporal test worker", async () => {
-    const program = Effect.scoped(
-      Effect.gen(function*() {
-        const environment = yield* TemporalTesting.makeTimeSkipping()
-        const taskQueue = TemporalTesting.makeTaskQueue("checkout")
-
-        const executeWorkflow = checkoutWorkflow.execute({
-          orderId: "ord_123",
-          customerId: "cus_123",
-          totalCents: 4200
-        }).pipe(
-          Effect.provide(
-            TemporalTesting.workflowEngineLayer({
-              taskQueue,
-              workflowIdPrefix: "test"
-            })
-          ),
-          Effect.provideService(
-            TemporalTesting.TemporalTestEnvironment,
-            environment
-          ),
-          Effect.scoped
-        )
-
-        return yield* TemporalTesting.runWorkerUntil(
-          {
-            taskQueue,
-            workflowsPath
-          },
-          () => Effect.runPromise(executeWorkflow)
-        ).pipe(
-          Effect.provideService(
-            TemporalTesting.TemporalTestEnvironment,
-            environment
-          )
-        )
-      })
-    )
-
-    await expect(Effect.runPromise(program)).resolves.toEqual({
-      orderId: "ord_123",
-      chargeId: "charge-123"
-    })
-  })
-})
-```
-
-The repository e2e tests use the same helpers to dogfood the testing package
-while still running a real Temporal test server and worker.
-
-## Example: Full Effect Workflow Surface
-
-The maintained, type-checked example lives in
-[`sample/effect-workflow-example.ts`](./sample/effect-workflow-example.ts).
-
-It demonstrates these `effect/workflow` constructs together:
-
-- `Workflow.make`
-- workflow annotations (`Workflow.SuspendOnFailure`, `Workflow.CaptureDefects`)
-- `workflow.withCompensation(...)`
-- `Workflow.addFinalizer(...)`
-- `Workflow.provideScope(...)`
-- `Activity.make`, `Activity.retry`, `Activity.raceAll`, `Activity.idempotencyKey`
-- `DurableDeferred.make`, `DurableDeferred.await`, `DurableDeferred.into`, `DurableDeferred.raceAll`
-- `DurableDeferred.token`, `DurableDeferred.tokenFromPayload`, `DurableDeferred.succeed`, `DurableDeferred.fail`, `DurableDeferred.done`
-- `DurableClock.sleep`
-- workflow lifecycle methods: `execute`, `executionId`, `poll`, `interrupt`, `resume`, `toLayer`
-
-### Temporal status for this repository
-
-This example is the target full upstream `effect/workflow` surface for this package.
-
-- `Workflow` metadata and engine operations (`execute`, `poll`, `interrupt`, `resume`) are present.
-- Temporal-side protocol primitives for deferreds and clocks are present.
-- Full workflow-runtime execution plus `Activity` / `DurableDeferred` / `DurableClock` behavior are available through `TemporalWorkflowRuntime.makeWorkflow(...)` and `TemporalWorkflowRuntime.makeActivities(...)`.
-- Nested workflow execution inside the Temporal runtime is available through Temporal child workflows.
-
-Until the e2e harness covers the full runtime surface, treat the example as the intended usage shape and use it together with live Temporal validation in downstream applications.
+Use `@effect-temporal/testing`: `makeWorkflowTestHarness` boots a test server,
+worker, and engine in one scoped call for integration tests, and
+`makeStubTemporalClient` records client interactions for serverless unit
+tests.
