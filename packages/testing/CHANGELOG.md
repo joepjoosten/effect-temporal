@@ -1,5 +1,27 @@
 # @effect-temporal/testing
 
+## 0.1.6
+
+### Patch Changes
+
+- [#46](https://github.com/joepjoosten/effect-temporal/pull/46) [`4e22580`](https://github.com/joepjoosten/effect-temporal/commit/4e225807211bf2fa54c11c2f16784dfd64cb8e1b) Thanks [@joepjoosten](https://github.com/joepjoosten)! - Two new testing utilities:
+
+  - `makeStubTemporalClient` — a recording stub (test double) for the Temporal
+    workflow client, for unit tests with zero servers. Every start, signal,
+    query, termination, and cancellation is recorded for assertions;
+    unconfigured surface members throw a descriptive error naming the member;
+    `alreadyStartedWorkflowIds` simulates already-started executions so the
+    engine's attach path can be exercised. Ships a ready `layer`.
+  - `makeWorkflowTestHarness` — a one-call, scope-bound integration harness:
+    boots the test environment (time-skipping by default, `local` selectable),
+    runs a worker for the given workflow bundle and activities for the
+    lifetime of the scope with ordered teardown, and returns a ready client,
+    engine, and a `provide` helper wiring both into any Effect.
+
+- Updated dependencies [[`89b43db`](https://github.com/joepjoosten/effect-temporal/commit/89b43db72a530eb3f7dc1a24351ee5de06cd7277), [`77edd20`](https://github.com/joepjoosten/effect-temporal/commit/77edd20a137852388e3c9816eefa26432692ebe6), [`b7d7ce8`](https://github.com/joepjoosten/effect-temporal/commit/b7d7ce80313e6cbfd79d037f7690bb0032a855ba), [`3fdb54e`](https://github.com/joepjoosten/effect-temporal/commit/3fdb54ec256499c597f6b3ff50d60819cba64ede)]:
+  - @effect-temporal/workflow@0.1.6
+  - @effect-temporal/client@0.2.2
+
 ## 0.1.5
 
 ### Patch Changes
