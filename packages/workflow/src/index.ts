@@ -18,6 +18,37 @@ export * as TemporalConnection from "./TemporalConnection.js"
 export * as TemporalError from "./TemporalError.js"
 
 /**
+ * Effect runtime configuration for the Temporal workflow sandbox.
+ *
+ * The polyfill import below must stay first so the globals are installed
+ * before any `effect` module evaluates inside the workflow bundle.
+ *
+ * @since 1.0.0
+ */
+export * as TemporalSandbox from "./TemporalSandbox.js"
+
+/**
+ * Global polyfills that make the Temporal workflow sandbox safe for Effect
+ * programs.
+ *
+ * The workflow isolate lacks `crypto`, `TextEncoder`, and `performance`, all
+ * of which Effect touches: workflow execution ids are derived with
+ * `crypto.subtle.digest("SHA-256", new TextEncoder().encode(...))`, the
+ * default random service seeds from `crypto.getRandomValues`, and the clock
+ * captures `performance.now` (with module-level fallback state) the moment the
+ * `effect` module evaluates.
+ *
+ * This module must therefore evaluate before any `effect` module inside the
+ * workflow bundle and must not import `effect` itself. Importing
+ * `TemporalWorkflowRuntime` (or `TemporalSandbox`) first in the workflow
+ * entrypoint is sufficient; the polyfills are also re-installed defensively on
+ * every workflow run.
+ *
+ * @since 1.0.0
+ */
+export * as TemporalSandboxPolyfills from "./TemporalSandboxPolyfills.js"
+
+/**
  * @since 1.0.0
  */
 export * as TemporalWorker from "./TemporalWorker.js"
@@ -36,3 +67,20 @@ export * as TemporalWorkflowProtocol from "./TemporalWorkflowProtocol.js"
  * @since 1.0.0
  */
 export * as TemporalWorkflowRuntime from "./TemporalWorkflowRuntime.js"
+
+/**
+ * Wire codecs for every value that crosses a Temporal boundary: workflow
+ * payloads, workflow results, and durable-deferred exits.
+ *
+ * Everything on the wire is schema-encoded JSON. Typed workflow failures fail
+ * the Temporal run with the full encoded `Workflow.Result` carried in
+ * `ApplicationFailure.details[0]` under the {@link workflowExitFailureType}
+ * failure type, so every reading side can decode the exit back into the
+ * workflow's typed success and error channels.
+ *
+ * This module is imported inside the workflow sandbox, so it must only depend
+ * on `effect` and `@temporalio/common`.
+ *
+ * @since 1.0.0
+ */
+export * as TemporalWorkflowWire from "./TemporalWorkflowWire.js"

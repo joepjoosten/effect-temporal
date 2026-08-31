@@ -2,7 +2,7 @@
  * @since 1.0.0
  */
 import type * as TemporalClientError from "@effect-temporal/client/TemporalError"
-import { WorkflowExecutionAlreadyStartedError, type WorkflowFailedError } from "@temporalio/client"
+import { WorkflowExecutionAlreadyStartedError } from "@temporalio/client"
 import * as Context from "effect/Context"
 import * as Duration from "effect/Duration"
 import * as Effect from "effect/Effect"
@@ -31,6 +31,7 @@ import {
   workflowIdFor,
   workflowStateQueryName
 } from "./TemporalWorkflowProtocol.js"
+import { decodeDeferredExit, decodeWorkflowFailure, encodeDeferredExit, wireCodecsFor } from "./TemporalWorkflowWire.js"
 
 /**
  * @since 1.0.0
@@ -64,26 +65,23 @@ const unsupported = (message: string): Effect.Effect<never, never> =>
     })
   )
 
-const exitFromFailure = (error: WorkflowFailedError | unknown): Exit.Exit<never, unknown> => {
-  if (typeof error === "object" && error !== null && "cause" in error) {
-    return Exit.fail((error as { cause: unknown }).cause)
-  }
-  return Exit.fail(error)
-}
-
-const completed = <A, E>(exit: Exit.Exit<A, E>): Workflow.Result<A, E> => new Workflow.Complete({ exit })
-
 const workflowResultOptions = (
   config: TemporalWorkflowEngineConfig
 ) => config.followRuns === undefined ? undefined : { followRuns: config.followRuns }
 
-const completedFromResult = <A>(
-  result: Effect.Effect<A, TemporalClientError.TemporalClientError>
-): Effect.Effect<Workflow.Result<A, unknown>> =>
-  result.pipe(
+const resultFromClientOutcome = (
+  workflow: Workflow.Any,
+  outcome: Effect.Effect<unknown, TemporalClientError.TemporalClientError>
+): Effect.Effect<Workflow.Result<unknown, unknown>> =>
+  outcome.pipe(
     Effect.match({
-      onFailure: (error) => completed(exitFromFailure(error.cause)),
-      onSuccess: (value) => completed(Exit.succeed(value))
+      onFailure: (error) =>
+        decodeWorkflowFailure(workflow, error.cause)
+          ?? new Workflow.Complete({ exit: Exit.die(error.cause ?? error) }),
+      onSuccess: (value) =>
+        new Workflow.Complete({
+          exit: Exit.succeed(wireCodecsFor(workflow).decodeSuccess(value))
+        })
     })
   )
 
@@ -104,14 +102,14 @@ export const make = (
 
     const engine = WorkflowEngine.makeUnsafe({
       register: (workflow: Workflow.Any) =>
-        Ref.update(registry, (current) => new Map(current).set(workflow.name, workflow)),
+        Ref.update(registry, (current) => new Map(current).set(workflow._tag, workflow)),
       execute: (workflow: Workflow.Any, options: any) =>
         Effect.gen(function*() {
-          const workflowId = workflowIdFor(workflow.name, options.executionId, config.workflowIdPrefix)
-          const start = client.start(workflow.name, {
+          const workflowId = workflowIdFor(workflow._tag, options.executionId, config.workflowIdPrefix)
+          const start = client.start(workflow._tag, {
             workflowId,
             taskQueue: config.taskQueue,
-            args: [options.payload]
+            args: [wireCodecsFor(workflow).encodePayload(options.payload)]
           }).pipe(
             Effect.catchTag("TemporalClientError", (error) => {
               if (error.cause instanceof WorkflowExecutionAlreadyStartedError) {
@@ -125,15 +123,16 @@ export const make = (
             return undefined as void
           }
           if (handle === null) {
-            return yield* completedFromResult(
+            return yield* resultFromClientOutcome(
+              workflow,
               client.result(workflowId, undefined, workflowResultOptions(config))
             )
           }
-          return yield* completedFromResult(handle.result)
+          return yield* resultFromClientOutcome(workflow, handle.result)
         }) as any,
       poll: (workflow: Workflow.Any, executionId: string) =>
         Effect.gen(function*() {
-          const workflowId = workflowIdFor(workflow.name, executionId, config.workflowIdPrefix)
+          const workflowId = workflowIdFor(workflow._tag, executionId, config.workflowIdPrefix)
           const handle = client.getHandle(workflowId)
           const description = yield* handle.describe.pipe(
             Effect.catchTag("TemporalClientError", () => Effect.succeed(null))
@@ -147,29 +146,30 @@ export const make = (
             ).pipe(Effect.catchTag("TemporalClientError", () => Effect.succeed<TemporalWorkflowState | null>(null)))
             if (state?.status === "suspended") {
               return Option.some(
-                new Workflow.Suspended({
-                  cause: undefined
-                })
+                state.result === undefined
+                  ? new Workflow.Suspended({ cause: undefined })
+                  : wireCodecsFor(workflow).decodeResult(state.result)
               )
             }
             return Option.none()
           }
-          const result = yield* completedFromResult(
+          const result = yield* resultFromClientOutcome(
+            workflow,
             client.result(workflowId, undefined, workflowResultOptions(config))
           )
           return Option.some(result)
         }) as any,
       interrupt: (workflow: Workflow.Any, executionId: string) =>
         client.getHandle(
-          workflowIdFor(workflow.name, executionId, config.workflowIdPrefix)
+          workflowIdFor(workflow._tag, executionId, config.workflowIdPrefix)
         ).signal(interruptSignalName).pipe(Effect.catchTag("TemporalClientError", () => Effect.void)),
       interruptUnsafe: (workflow: Workflow.Any, executionId: string) =>
         client.getHandle(
-          workflowIdFor(workflow.name, executionId, config.workflowIdPrefix)
+          workflowIdFor(workflow._tag, executionId, config.workflowIdPrefix)
         ).signal(interruptSignalName).pipe(Effect.catchTag("TemporalClientError", () => Effect.void)),
       resume: (workflow: Workflow.Any, executionId: string) =>
         client.getHandle(
-          workflowIdFor(workflow.name, executionId, config.workflowIdPrefix)
+          workflowIdFor(workflow._tag, executionId, config.workflowIdPrefix)
         ).signal(resumeSignalName).pipe(Effect.catchTag("TemporalClientError", () => Effect.void)),
       activityExecute: () =>
         unsupported(
@@ -179,14 +179,12 @@ export const make = (
         Effect.gen(function*() {
           const instance = yield* WorkflowEngine.WorkflowInstance
           return yield* client.getHandle(
-            workflowIdFor(instance.workflow.name, instance.executionId, config.workflowIdPrefix)
+            workflowIdFor(instance.workflow._tag, instance.executionId, config.workflowIdPrefix)
           ).query<TemporalDeferredResult, [string]>(
             deferredResultQueryName,
             deferred.name
           ).pipe(
-            Effect.map((result) =>
-              result.found ? Option.some(result.exit as Exit.Exit<unknown, unknown>) : Option.none()
-            ),
+            Effect.map((result) => result.found ? Option.some(decodeDeferredExit(result.exit)) : Option.none()),
             Effect.catchTag("TemporalClientError", () => Effect.succeed(Option.none()))
           )
         }),
@@ -197,7 +195,7 @@ export const make = (
           completeDeferredSignalName,
           {
             name: options.deferredName,
-            exit: options.exit
+            exit: encodeDeferredExit(options.exit)
           } satisfies CompleteDeferredSignal
         ).pipe(Effect.catchTag("TemporalClientError", () => Effect.void)),
       scheduleClock: (
@@ -205,7 +203,7 @@ export const make = (
         options: { readonly executionId: string; readonly clock: DurableClock }
       ) =>
         client.getHandle(
-          workflowIdFor(workflow.name, options.executionId, config.workflowIdPrefix)
+          workflowIdFor(workflow._tag, options.executionId, config.workflowIdPrefix)
         ).signal(
           scheduleClockSignalName,
           {

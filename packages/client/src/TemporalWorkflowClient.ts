@@ -170,7 +170,7 @@ export interface TemporalWorkflowClient {
     TemporalClientError | TemporalValidationError,
     TemporalSchema.DecodingServices<Args>
   >
-  readonly signalWithStart: <T extends Workflow, SignalArgs extends any[] = []>(
+  readonly signalWithStart: <T extends Workflow, SignalArgs extends Array<any> = []>(
     workflow: string | T,
     options: WithWorkflowArgs<T, WorkflowSignalWithStartOptions<SignalArgs>>
   ) => Effect.Effect<TemporalWorkflowHandle.TemporalWorkflowHandle<T>, TemporalClientError>
@@ -237,7 +237,7 @@ export interface TemporalWorkflowClient {
     intoHistoriesOptions?: IntoHistoriesOptions | undefined
   ) => Stream.Stream<WorkflowHistoryEntry, TemporalClientError>
   readonly count: (query?: string | undefined) => Effect.Effect<CountWorkflowExecution, TemporalClientError>
-  readonly startUpdateWithStart: <T extends Workflow, Ret, Args extends any[]>(
+  readonly startUpdateWithStart: <T extends Workflow, Ret, Args extends Array<any>>(
     definition: UpdateDefinition<Ret, Args> | string,
     options: WorkflowUpdateOptions & {
       readonly args?: Args | undefined
@@ -245,7 +245,7 @@ export interface TemporalWorkflowClient {
       readonly startWorkflowOperation: WithStartWorkflowOperation<T>
     }
   ) => Effect.Effect<TemporalWorkflowHandle.TemporalWorkflowUpdateHandle<Ret>, TemporalClientError>
-  readonly executeUpdateWithStart: <T extends Workflow, Ret, Args extends any[]>(
+  readonly executeUpdateWithStart: <T extends Workflow, Ret, Args extends Array<any>>(
     definition: UpdateDefinition<Ret, Args> | string,
     options: WorkflowUpdateOptions & {
       readonly args?: Args | undefined

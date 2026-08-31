@@ -11,7 +11,7 @@ import type {
   ScheduleOverlapPolicy,
   ScheduleUpdateOptions
 } from "@temporalio/client"
-import * as Effect from "effect/Effect"
+import type * as Effect from "effect/Effect"
 import { type TemporalClientError, tryClientPromise } from "./TemporalError.js"
 
 /**

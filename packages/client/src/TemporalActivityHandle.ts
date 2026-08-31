@@ -5,7 +5,7 @@
  */
 import type { ActivityExecutionDescription, ActivityHandle } from "@temporalio/client"
 import * as Effect from "effect/Effect"
-import * as Schema from "effect/Schema"
+import type * as Schema from "effect/Schema"
 import { type TemporalClientError, type TemporalValidationError, tryClientPromise } from "./TemporalError.js"
 import * as TemporalSchema from "./TemporalSchema.js"
 
