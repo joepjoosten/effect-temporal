@@ -49,6 +49,23 @@ export * as TemporalSandbox from "./TemporalSandbox.js"
 export * as TemporalSandboxPolyfills from "./TemporalSandboxPolyfills.js"
 
 /**
+ * Queryable published workflow state.
+ *
+ * A state cell is a named, schema-typed value a workflow publishes for
+ * observers. The workflow body writes it with `set`; clients read a typed
+ * snapshot at any time through the reserved state-cell query — including
+ * after the run has closed, since Temporal serves queries on closed
+ * workflows.
+ *
+ * This module is sandbox-safe: definitions and `set` can be imported from the
+ * workflow bundle. The client-side read lives in
+ * `TemporalWorkflowInteractions`.
+ *
+ * @since 1.0.0
+ */
+export * as TemporalStateCell from "./TemporalStateCell.js"
+
+/**
  * @since 1.0.0
  */
 export * as TemporalWorker from "./TemporalWorker.js"
@@ -57,6 +74,18 @@ export * as TemporalWorker from "./TemporalWorker.js"
  * @since 1.0.0
  */
 export * as TemporalWorkflowEngine from "./TemporalWorkflowEngine.js"
+
+/**
+ * Client-side interactions with running (or closed) Effect workflows beyond
+ * the `WorkflowEngine` contract: reading published state cells, and — as more
+ * primitives land — offering mailbox messages and executing updates.
+ *
+ * This module uses the Temporal client and must not be imported from a
+ * workflow bundle.
+ *
+ * @since 1.0.0
+ */
+export * as TemporalWorkflowInteractions from "./TemporalWorkflowInteractions.js"
 
 /**
  * @since 1.0.0

@@ -3,6 +3,7 @@ import * as Schema from "effect/Schema"
 import * as Activity from "effect/unstable/workflow/Activity"
 import * as DurableDeferred from "effect/unstable/workflow/DurableDeferred"
 import * as Workflow from "effect/unstable/workflow/Workflow"
+import * as TemporalStateCell from "../src/TemporalStateCell.js"
 import * as TemporalWorkflowRuntime from "../src/TemporalWorkflowRuntime.js"
 
 export class OrderRejected extends Schema.TaggedError<OrderRejected>()("OrderRejected", {
@@ -130,6 +131,29 @@ export const RuntimeE2ECompensationWorkflow = TemporalWorkflowRuntime.makeWorkfl
       )
       const approval = yield* DurableDeferred.await(neverApproval)
       return `${payload.orderId}:${reservation}:${approval}`
+    })
+})
+
+export const orderStatus = TemporalStateCell.make("order-status", {
+  value: Schema.Struct({ phase: Schema.String, step: Schema.Number })
+})
+
+export const statusWorkflow = Workflow.make("RuntimeE2EStatusWorkflow", {
+  payload: {
+    orderId: Schema.String
+  },
+  success: Schema.String,
+  idempotencyKey: ({ orderId }) => orderId
+})
+
+export const RuntimeE2EStatusWorkflow = TemporalWorkflowRuntime.makeWorkflow({
+  workflow: statusWorkflow,
+  execute: (payload: { readonly orderId: string }) =>
+    Effect.gen(function*() {
+      yield* TemporalStateCell.set(orderStatus, { phase: "reserved", step: 1 })
+      const approval = yield* DurableDeferred.await(managerApproval)
+      yield* TemporalStateCell.set(orderStatus, { phase: "approved", step: 2 })
+      return `${payload.orderId}:${approval.approverId}`
     })
 })
 

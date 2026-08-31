@@ -94,6 +94,24 @@ export const scheduleClockSignalName = "__effect_workflow_schedule_clock"
 
 /**
  * @since 1.0.0
+ * @category Constants
+ */
+export const stateCellQueryName = "__effect_workflow_state_cell"
+
+/**
+ * State-cell lookup response. `value` is the schema-encoded JSON form of the
+ * cell's current value.
+ *
+ * @since 1.0.0
+ * @category Models
+ */
+export interface TemporalStateCellResult {
+  readonly found: boolean
+  readonly value?: unknown
+}
+
+/**
+ * @since 1.0.0
  * @category Helpers
  */
 export const workflowIdFor = (

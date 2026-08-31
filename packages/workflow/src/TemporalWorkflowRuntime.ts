@@ -16,6 +16,7 @@ import {
   startChild,
   workflowInfo
 } from "@temporalio/workflow"
+import * as Context from "effect/Context"
 import * as Duration from "effect/Duration"
 import * as Effect from "effect/Effect"
 import * as Exit from "effect/Exit"
@@ -29,6 +30,7 @@ import type {
   CompleteDeferredSignal,
   ScheduleClockSignal,
   TemporalDeferredResult,
+  TemporalStateCellResult,
   TemporalWorkflowState
 } from "./TemporalWorkflowProtocol.js"
 import {
@@ -37,6 +39,7 @@ import {
   interruptSignalName,
   resumeSignalName,
   scheduleClockSignalName,
+  stateCellQueryName,
   workflowStateQueryName
 } from "./TemporalWorkflowProtocol.js"
 import {
@@ -85,6 +88,12 @@ export const scheduleClockSignal = defineSignal<[ScheduleClockSignal]>(scheduleC
 
 /**
  * @since 1.0.0
+ * @category Protocol
+ */
+export const stateCellQuery = defineQuery<TemporalStateCellResult, [name: string]>(stateCellQueryName)
+
+/**
+ * @since 1.0.0
  * @category Models
  */
 export interface TemporalWorkflowRuntimeState {
@@ -97,8 +106,28 @@ export interface TemporalWorkflowRuntimeState {
   readonly clocks: Map<string, ScheduleClockSignal>
   readonly activityResults: Map<string, Workflow.ResultEncoded<unknown, unknown>>
   readonly inFlight: Set<CancellationScope>
+  readonly stateCells: Map<string, unknown>
   runScope?: CancellationScope | undefined
 }
+
+/**
+ * Service exposing the per-run runtime state to workflow-side primitives
+ * (state cells, mailboxes, updates). Provided automatically by
+ * `makeWorkflow`; only available inside a Temporal workflow run.
+ *
+ * @since 1.0.0
+ * @category Tags
+ */
+export const TemporalSandboxRun = Context.Service<
+  TemporalSandboxRun,
+  TemporalWorkflowRuntimeState
+>("@effect-temporal/workflow/TemporalSandboxRun")
+
+/**
+ * @since 1.0.0
+ * @category Models
+ */
+export type TemporalSandboxRun = TemporalWorkflowRuntimeState
 
 /**
  * @since 1.0.0
@@ -115,7 +144,8 @@ export const makeRuntimeState = (
   deferreds: new Map(),
   clocks: new Map(),
   activityResults: new Map(),
-  inFlight: new Set()
+  inFlight: new Set(),
+  stateCells: new Map()
 })
 
 /**
@@ -155,6 +185,12 @@ export const installBaseHandlers = (
   })
   setHandler(scheduleClockSignal, (clock) => {
     state.clocks.set(clock.name, clock)
+  })
+  setHandler(stateCellQuery, (name) => {
+    const value = state.stateCells.get(name)
+    return value === undefined
+      ? { found: false }
+      : { found: true, value }
   })
 }
 
@@ -441,7 +477,8 @@ export const makeWorkflow = <Payload, Success, Error, R>(
           }),
           Workflow.intoResult,
           Effect.provideService(WorkflowEngine.WorkflowEngine, engine),
-          Effect.provideService(WorkflowEngine.WorkflowInstance, instance)
+          Effect.provideService(WorkflowEngine.WorkflowInstance, instance),
+          Effect.provideService(TemporalSandboxRun, state)
         )
         const program = options.provide === undefined ? base : options.provide(base)
         const fiber = Effect.runFork(
