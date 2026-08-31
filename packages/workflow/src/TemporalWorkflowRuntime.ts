@@ -154,6 +154,12 @@ export interface TemporalWorkflowRuntimeState {
    * resumed pass of the body does not start a duplicate child run.
    */
   readonly childResults: Map<string, Workflow.Result<unknown, unknown>>
+  /**
+   * Memoized typed-activity exits keyed by activity name and per-pass call
+   * sequence; `typedActivitySeq` resets each pass so calls replay in order.
+   */
+  readonly typedActivityResults: Map<string, unknown>
+  readonly typedActivitySeq: Map<string, number>
   runScope?: CancellationScope | undefined
 }
 
@@ -198,7 +204,9 @@ export const makeRuntimeState = (
   updateLogs: new Map(),
   updateCursors: new Map(),
   updateResults: new Map(),
-  childResults: new Map()
+  childResults: new Map(),
+  typedActivityResults: new Map(),
+  typedActivitySeq: new Map()
 })
 
 /**
@@ -567,10 +575,11 @@ export const makeWorkflow = <Payload, Success, Error, R>(
       void condition(() => state.interrupted).then(onInterrupted)
 
       while (true) {
-        // Each pass of the body replays consumed mailbox messages and update
-        // requests from the start of their logs.
+        // Each pass of the body replays consumed mailbox messages, update
+        // requests, and typed-activity calls from the start of their logs.
         state.mailboxCursors.clear()
         state.updateCursors.clear()
+        state.typedActivitySeq.clear()
         const instance = WorkflowEngine.WorkflowInstance.initial(options.workflow, executionId)
         instance.interrupted = state.interrupted
         activeInstance = instance

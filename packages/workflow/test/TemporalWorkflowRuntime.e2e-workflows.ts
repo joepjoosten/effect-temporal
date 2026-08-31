@@ -7,6 +7,7 @@ import * as TemporalContinueAsNew from "../src/TemporalContinueAsNew.js"
 import * as TemporalDurableMailbox from "../src/TemporalDurableMailbox.js"
 import * as TemporalDurableUpdate from "../src/TemporalDurableUpdate.js"
 import * as TemporalStateCell from "../src/TemporalStateCell.js"
+import * as TemporalTypedActivity from "../src/TemporalTypedActivity.js"
 import * as TemporalWorkflowRuntime from "../src/TemporalWorkflowRuntime.js"
 
 export class OrderRejected extends Schema.TaggedError<OrderRejected>()("OrderRejected", {
@@ -246,7 +247,62 @@ export const RuntimeE2ECountdownWorkflow = TemporalWorkflowRuntime.makeWorkflow(
     })
 })
 
+export class ChargeDeclined extends Schema.TaggedError<ChargeDeclined>()("ChargeDeclined", {
+  code: Schema.Number
+}) {}
+
+export const chargeActivity = TemporalTypedActivity.make("chargeCard", {
+  payload: Schema.Struct({ orderId: Schema.String, amountCents: Schema.Number }),
+  success: Schema.Struct({ receiptId: Schema.String }),
+  error: ChargeDeclined,
+  options: {
+    startToCloseTimeout: "30 seconds",
+    retry: { maximumAttempts: 1 }
+  }
+})
+
+export const chargeLog: Array<string> = []
+
+export const chargeImplementation = TemporalTypedActivity.handle(
+  chargeActivity,
+  (payload) =>
+    Effect.gen(function*() {
+      chargeLog.push(`${payload.orderId}:${payload.amountCents}`)
+      if (payload.amountCents < 0) {
+        return yield* new ChargeDeclined({ code: 51 })
+      }
+      return { receiptId: `receipt-${payload.orderId}` }
+    })
+)
+
+export const paymentWorkflow = Workflow.make("RuntimeE2EPaymentWorkflow", {
+  payload: {
+    orderId: Schema.String
+  },
+  success: Schema.String,
+  idempotencyKey: ({ orderId }) => orderId
+})
+
+export const RuntimeE2EPaymentWorkflow = TemporalWorkflowRuntime.makeWorkflow({
+  workflow: paymentWorkflow,
+  execute: (payload: { readonly orderId: string }) =>
+    Effect.gen(function*() {
+      const receipt = yield* TemporalTypedActivity.call(chargeActivity, {
+        orderId: payload.orderId,
+        amountCents: 500
+      })
+      const declined = yield* TemporalTypedActivity.call(chargeActivity, {
+        orderId: payload.orderId,
+        amountCents: -1
+      }).pipe(
+        Effect.catchTag("ChargeDeclined", (error) => Effect.succeed(`declined-${error.code}`))
+      )
+      return `${receipt.receiptId}:${declined}`
+    })
+})
+
 export const activities = {
+  ...TemporalTypedActivity.implement([chargeImplementation]),
   ...TemporalWorkflowRuntime.makeActivities(runtimeWorkflow, [appendActivity]),
   ...TemporalWorkflowRuntime.makeActivities(compensationWorkflow, [reserveActivity, releaseActivity])
 }
