@@ -14,6 +14,7 @@ import {
   addToCounter,
   approvalWorkflow,
   batcherWorkflow,
+  chargeLog,
   compensationLog,
   compensationWorkflow,
   countdownWorkflow,
@@ -24,6 +25,7 @@ import {
   orderCommands,
   OrderRejected,
   orderStatus,
+  paymentWorkflow,
   runtimeWorkflow,
   statusWorkflow
 } from "./TemporalWorkflowRuntime.e2e-workflows.js"
@@ -299,5 +301,16 @@ describe("TemporalWorkflowRuntime e2e", () => {
     // The latest run's history starts from a continued-as-new execution.
     const started = events.find((event) => event.workflowExecutionStartedEventAttributes != null)
     expect(started?.workflowExecutionStartedEventAttributes?.continuedExecutionRunId).toBeTruthy()
+  }, 120_000)
+
+  it("calls typed activities with explicit payloads and typed failure channels", async () => {
+    const payload = { orderId: "ord-pay" }
+    chargeLog.length = 0
+
+    const result = await runWithWorker((_taskQueue) => paymentWorkflow.execute(payload).pipe(Effect.orDie))
+
+    expect(result).toBe("receipt-ord-pay:declined-51")
+    // Both calls reached the worker with decoded payloads.
+    expect(chargeLog).toEqual(["ord-pay:500", "ord-pay:-1"])
   }, 120_000)
 })

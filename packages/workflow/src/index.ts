@@ -118,6 +118,30 @@ export * as TemporalSandboxPolyfills from "./TemporalSandboxPolyfills.js"
 export * as TemporalStateCell from "./TemporalStateCell.js"
 
 /**
+ * Schema-typed activities with explicit payloads.
+ *
+ * Effect's `Activity.make` couples an activity to an effect closed over
+ * workflow-body state — closures that cannot cross the worker boundary on
+ * Temporal, where activities execute in a separate Node process. A typed
+ * activity instead declares an explicit payload schema alongside success and
+ * failure schemas and per-activity Temporal options; the definition is shared
+ * by the workflow bundle and the worker so the two sides cannot drift.
+ *
+ * - Workflow side (`call`): encodes the payload, schedules a real Temporal
+ *   activity, and decodes the typed exit — the schema'd failure lands in the
+ *   Effect error channel.
+ * - Worker side (`handle` + `implement`): binds an implementation
+ *   `(payload) => Effect` to the definition. Typed failures complete the
+ *   Temporal activity successfully carrying the encoded exit (no Temporal
+ *   retry); defects fail the activity so Temporal's retry policy applies.
+ *
+ * `make` and `call` are sandbox-safe; `handle`/`implement` run on the worker.
+ *
+ * @since 1.0.0
+ */
+export * as TemporalTypedActivity from "./TemporalTypedActivity.js"
+
+/**
  * @since 1.0.0
  */
 export * as TemporalWorker from "./TemporalWorker.js"
