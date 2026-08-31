@@ -117,6 +117,44 @@ export interface MailboxSignal {
 }
 
 /**
+ * @since 1.0.0
+ * @category Constants
+ */
+export const updateSignalName = "__effect_workflow_update"
+
+/**
+ * @since 1.0.0
+ * @category Constants
+ */
+export const updateResultQueryName = "__effect_workflow_update_result"
+
+/**
+ * Update request signal. `payload` is the schema-encoded JSON form of the
+ * request; `requestId` correlates the response served by the update-result
+ * query.
+ *
+ * @since 1.0.0
+ * @category Models
+ */
+export interface UpdateSignal {
+  readonly name: string
+  readonly requestId: string
+  readonly payload: unknown
+}
+
+/**
+ * Update response lookup. `exit` is the schema-encoded JSON form of the
+ * update's typed exit.
+ *
+ * @since 1.0.0
+ * @category Models
+ */
+export interface TemporalUpdateResult {
+  readonly found: boolean
+  readonly exit?: unknown
+}
+
+/**
  * State-cell lookup response. `value` is the schema-encoded JSON form of the
  * cell's current value.
  *

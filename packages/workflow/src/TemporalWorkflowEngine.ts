@@ -109,7 +109,11 @@ export const make = (
           const start = client.start(workflow._tag, {
             workflowId,
             taskQueue: config.taskQueue,
-            args: [wireCodecsFor(workflow).encodePayload(options.payload)]
+            args: [wireCodecsFor(workflow).encodePayload(options.payload)],
+            // Execution ids are idempotency keys: re-executing after
+            // completion must attach to the recorded result, never start a
+            // fresh run.
+            workflowIdReusePolicy: "REJECT_DUPLICATE"
           }).pipe(
             Effect.catchTag("TemporalClientError", (error) => {
               if (error.cause instanceof WorkflowExecutionAlreadyStartedError) {

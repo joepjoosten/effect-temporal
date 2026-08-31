@@ -30,6 +30,24 @@ export * as TemporalConnection from "./TemporalConnection.js"
 export * as TemporalDurableMailbox from "./TemporalDurableMailbox.js"
 
 /**
+ * Typed request/response interactions with running workflows.
+ *
+ * A durable update is a named channel of schema-typed requests, each of which
+ * the workflow answers with a typed success or a typed failure. Requests
+ * arrive through a reserved signal into a per-run log; the workflow body
+ * serves them with `take`, and each request carries a one-shot typed
+ * `respond` capability whose exit is recorded per request id and served by
+ * the reserved update-result query. Clients call
+ * `TemporalWorkflowInteractions.executeUpdate` to send a request and await
+ * the typed response.
+ *
+ * This module is sandbox-safe.
+ *
+ * @since 1.0.0
+ */
+export * as TemporalDurableUpdate from "./TemporalDurableUpdate.js"
+
+/**
  * @since 1.0.0
  */
 export * as TemporalError from "./TemporalError.js"
