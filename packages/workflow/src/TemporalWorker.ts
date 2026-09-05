@@ -61,14 +61,40 @@ const wrap = <A>(
       })
   })
 
-const shutdownWorker = (worker: Worker): Effect.Effect<void> =>
-  Effect.sync(() => {
-    try {
-      worker.shutdown()
-    } catch {
-      // Worker.runUntil stops the worker before scoped finalizers run.
-    }
+const ownWorker = (worker: Worker): TemporalWorker => {
+  let completion: Promise<void> | undefined
+  let closing: Promise<void> | undefined
+  const track = <A>(run: () => Promise<A>): Promise<A> => {
+    const promise = run()
+    // A second (invalid) run must not replace the first run's completion.
+    completion ??= promise.then(() => undefined, () => undefined)
+    return promise
+  }
+  const shutdown = Effect.promise(() =>
+    closing ??= (async () => {
+      if (completion === undefined && worker.getState() === "INITIALIZED") {
+        // The SDK releases native references in run's finally block. Drive an
+        // unused worker through an immediately completed runUntil to release it.
+        track(() => worker.runUntil(async () => undefined))
+      } else if (worker.getState() === "RUNNING") {
+        worker.shutdown()
+      }
+      await completion
+    })()
+  )
+
+  return TemporalWorker.of({
+    unsafeWorker: worker,
+    run: wrap("Temporal worker failed while running", () => track(() => worker.run())).pipe(
+      Effect.onInterrupt(() => shutdown)
+    ),
+    runUntil: <A>(thunk: () => Promise<A>) =>
+      wrap("Temporal worker failed while running", () => track(() => worker.runUntil(thunk))).pipe(
+        Effect.onInterrupt(() => shutdown)
+      ),
+    shutdown
   })
+}
 
 /**
  * @since 1.0.0
@@ -100,22 +126,12 @@ export const make = (
 ): Effect.Effect<TemporalWorker, TemporalWorkerError, TemporalWorkerConnection | Scope.Scope> =>
   Effect.gen(function*() {
     const connection = yield* TemporalWorkerConnection
-    const unsafeWorker = yield* Effect.acquireRelease(
-      wrap("Failed to create Temporal worker", () =>
-        Worker.create({
-          ...options,
-          connection
-        })),
-      shutdownWorker
+    return yield* Effect.acquireRelease(
+      wrap("Failed to create Temporal worker", () => Worker.create({ ...options, connection })).pipe(
+        Effect.map(ownWorker)
+      ),
+      (worker) => worker.shutdown
     )
-
-    return TemporalWorker.of({
-      unsafeWorker,
-      run: wrap("Temporal worker failed while running", () => unsafeWorker.run()),
-      runUntil: <A>(thunk: () => Promise<A>) =>
-        wrap("Temporal worker failed while running", () => unsafeWorker.runUntil(thunk)),
-      shutdown: shutdownWorker(unsafeWorker)
-    })
   })
 
 /**

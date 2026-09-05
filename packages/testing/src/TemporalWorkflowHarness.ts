@@ -12,7 +12,6 @@ import * as TemporalClient from "@effect-temporal/client/TemporalWorkflowClient"
 import type * as TemporalError from "@effect-temporal/workflow/TemporalError"
 import * as TemporalWorkflowEngine from "@effect-temporal/workflow/TemporalWorkflowEngine"
 import * as Effect from "effect/Effect"
-import * as Fiber from "effect/Fiber"
 import type * as Scope from "effect/Scope"
 import * as WorkflowEngine from "effect/unstable/workflow/WorkflowEngine"
 import * as TemporalTesting from "./TemporalTesting.js"
@@ -96,16 +95,8 @@ export const makeWorkflowTestHarness = (
       workflowsPath: options.workflowsPath,
       ...(options.activities === undefined ? {} : { activities: options.activities })
     }))
-    // The worker polls for the lifetime of the scope. Teardown must shut the
-    // worker down and wait for the run to complete before the scoped worker
-    // connection closes, so the fiber is detached and joined in a finalizer.
-    const runFiber = yield* Effect.forkDetach(worker.run)
-    yield* Effect.addFinalizer(() =>
-      worker.shutdown.pipe(
-        Effect.andThen(Fiber.await(runFiber)),
-        Effect.ignore
-      )
-    )
+    // The worker service awaits native shutdown when this scoped fiber is interrupted.
+    yield* Effect.forkScoped(worker.run)
 
     const client = yield* withEnvironment(TemporalTesting.makeClient())
     const engine = yield* TemporalWorkflowEngine.make({
