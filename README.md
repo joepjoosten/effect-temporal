@@ -161,13 +161,13 @@ const activities = TemporalTypedActivity.implement([
       : Effect.succeed({ receiptId: `receipt-${payload.orderId}` }))
 ])
 
-const workerLayer = Layer.mergeAll(
-  TemporalWorker.connectionLayer({ address: "localhost:7233" }),
+const workerLayer = Layer.provide(
   TemporalWorker.layer({
     activities,
     taskQueue: "orders",
     workflowsPath: fileURLToPath(new URL("./workflows/bundle.js", import.meta.url))
-  })
+  }),
+  TemporalWorker.connectionLayer({ address: "localhost:7233" })
 )
 
 Effect.runPromise(Effect.provide(
@@ -188,10 +188,9 @@ import * as Effect from "effect/Effect"
 import * as Layer from "effect/Layer"
 import { orderWorkflow } from "./workflows/definitions.js"
 
-const temporalLayer = Layer.mergeAll(
-  TemporalConnection.layer({ address: "localhost:7233" }),
-  TemporalClient.layer(),
-  TemporalWorkflowEngine.layer({ taskQueue: "orders" })
+const temporalLayer = TemporalWorkflowEngine.layer({ taskQueue: "orders" }).pipe(
+  Layer.provideMerge(TemporalClient.layer()),
+  Layer.provideMerge(TemporalConnection.layer({ address: "localhost:7233" }))
 )
 
 // Typed success and error channels; idempotent by digest id.

@@ -9,7 +9,7 @@
     "clean": "node scripts/clean.mjs",
     "codegen": "pnpm --recursive --parallel run codegen",
     "build": "tsc -b tsconfig.build.json && pnpm --recursive --parallel run build",
-    "check": "tsc -b tsconfig.json",
+    "check": "tsc -b tsconfig.json && node scripts/check-readme.mjs",
     "check-recursive": "pnpm --recursive exec tsc -b tsconfig.json",
     "dprint": "dprint fmt",
     "dprint-check": "dprint check",
