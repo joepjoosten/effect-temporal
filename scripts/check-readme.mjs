@@ -1,6 +1,7 @@
 import * as Fs from "node:fs"
 import * as Path from "node:path"
-import { fileURLToPath } from "node:url"
+import process from "node:process"
+import { fileURLToPath, URL } from "node:url"
 import ts from "typescript"
 
 const root = fileURLToPath(new URL("../", import.meta.url))
