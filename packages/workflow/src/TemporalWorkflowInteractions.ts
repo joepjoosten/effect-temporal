@@ -13,6 +13,7 @@ import type * as Exit from "effect/Exit"
 import * as Option from "effect/Option"
 import * as Schema from "effect/Schema"
 import type * as Workflow from "effect/unstable/workflow/Workflow"
+import { isDeepStrictEqual } from "node:util"
 import * as TemporalClient from "./TemporalClient.js"
 import type { TemporalDurableMailbox } from "./TemporalDurableMailbox.js"
 import type { TemporalDurableUpdate } from "./TemporalDurableUpdate.js"
@@ -110,6 +111,17 @@ export class UpdateTimeoutError extends Schema.TaggedError<UpdateTimeoutError>()
 }) {}
 
 /**
+ * A request ID was already accepted with another channel or payload.
+ *
+ * @since 1.0.0
+ * @category Errors
+ */
+export class UpdateConflictError extends Schema.TaggedError<UpdateConflictError>()("UpdateConflictError", {
+  updateName: Schema.String,
+  requestId: Schema.String
+}) {}
+
+/**
  * Options for `executeUpdate`.
  *
  * @since 1.0.0
@@ -118,7 +130,9 @@ export class UpdateTimeoutError extends Schema.TaggedError<UpdateTimeoutError>()
 export interface ExecuteUpdateOptions {
   /**
    * Correlates the request with its response; pass a stable id to make the
-   * update idempotent across retries. Defaults to a random UUID.
+   * update idempotent across retries within one run. IDs are shared across
+   * update channels; reusing an ID with another payload/channel fails.
+   * Defaults to a random UUID.
    */
   readonly requestId?: string | undefined
   readonly pollIntervalMillis?: number | undefined
@@ -144,7 +158,7 @@ export const executeUpdate = <
   options?: ExecuteUpdateOptions | undefined
 ): Effect.Effect<
   Success["Type"],
-  Error["Type"] | TemporalClientError | UpdateTimeoutError,
+  Error["Type"] | TemporalClientError | UpdateTimeoutError | UpdateConflictError,
   TemporalClient.TemporalWorkflowClient
 > =>
   Effect.gen(function*() {
@@ -156,23 +170,33 @@ export const executeUpdate = <
       workflowIdFor(target.workflow._tag, target.executionId, target.workflowIdPrefix)
     )
 
-    yield* handle.signal(
-      updateSignalName,
-      {
-        name: update.name,
-        requestId,
-        payload: update.payloadCodecs.encode(payload)
-      } satisfies UpdateSignal
-    )
+    const request = {
+      name: update.name,
+      requestId,
+      payload: update.payloadCodecs.encode(payload)
+    } satisfies UpdateSignal
+    const query = handle.query<TemporalUpdateResult, [string]>(updateResultQueryName, requestId)
+    // Read before sending so a retry can recover a response after the run closes.
+    let result = yield* query
+    if (result.request === undefined && !result.found) {
+      yield* handle.signal(updateSignalName, request)
+      result = yield* query
+    }
 
     const deadline = Date.now() + timeoutMillis
-    while (Date.now() < deadline) {
-      const result = yield* handle.query<TemporalUpdateResult, [string]>(updateResultQueryName, requestId)
+    while (true) {
+      if (result.request !== undefined && !isDeepStrictEqual(result.request, request)) {
+        return yield* new UpdateConflictError({ requestId, updateName: update.name })
+      }
       if (result.found) {
         const exit = update.exitCodecs.decode(result.exit) as Exit.Exit<Success["Type"], Error["Type"]>
         return yield* exit
       }
+      if (Date.now() >= deadline) {
+        break
+      }
       yield* Effect.sleep(pollIntervalMillis)
+      result = yield* query
     }
     return yield* new UpdateTimeoutError({ requestId, timeoutMillis, updateName: update.name })
   })

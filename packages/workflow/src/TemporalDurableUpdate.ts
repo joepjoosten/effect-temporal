@@ -125,7 +125,9 @@ export const take = <
     }
     const respond = (exit: Exit.Exit<Success["Type"], Error["Type"]>): Effect.Effect<void> =>
       Effect.sync(() => {
-        state.updateResults.set(request.requestId, update.exitCodecs.encode(exit))
+        if (!state.updateResults.has(request.requestId)) {
+          state.updateResults.set(request.requestId, update.exitCodecs.encode(exit))
+        }
       })
     return {
       requestId: request.requestId,
