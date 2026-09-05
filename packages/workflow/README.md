@@ -46,6 +46,12 @@ optional `nexusServices`; clients provide `TemporalWorkflowEngine.layer` and
 call `workflow.execute` / `poll` / `interrupt` like with any other Effect
 engine.
 
+When the client engine uses `workflowIdPrefix`, pass the same prefix to
+`TemporalWorkflowRuntime.makeWorkflow` for workflow bodies that start children.
+New children use the same `prefix/executionId` (or `workflowTag/executionId`)
+address as client interactions. Histories predating the child-ID patch marker
+retain their original unprefixed child IDs during replay.
+
 Everything crossing a Temporal boundary is schema-encoded JSON, and typed
 failures round-trip: a workflow or activity failing with its schema'd error
 lands in the reading side's Effect error channel as a real class instance,

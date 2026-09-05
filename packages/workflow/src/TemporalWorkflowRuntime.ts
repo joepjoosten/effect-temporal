@@ -11,6 +11,7 @@ import {
   defineQuery,
   defineSignal,
   executeChild,
+  patched,
   proxyActivities,
   proxyLocalActivities,
   setHandler,
@@ -49,6 +50,7 @@ import {
   stateCellQueryName,
   updateResultQueryName,
   updateSignalName,
+  workflowIdFor,
   workflowStateQueryName
 } from "./TemporalWorkflowProtocol.js"
 import {
@@ -125,6 +127,7 @@ export const updateResultQuery = defineQuery<TemporalUpdateResult, [requestId: s
  */
 export interface TemporalWorkflowRuntimeState {
   readonly executionId: string
+  readonly workflowIdPrefix?: string | undefined
   status: TemporalWorkflowState["status"]
   interrupted: boolean
   resumed: boolean
@@ -188,9 +191,11 @@ export type TemporalSandboxRun = TemporalWorkflowRuntimeState
  * @category Constructors
  */
 export const makeRuntimeState = (
-  executionId: string
+  executionId: string,
+  workflowIdPrefix?: string
 ): TemporalWorkflowRuntimeState => ({
   executionId,
+  workflowIdPrefix,
   status: "running",
   interrupted: false,
   resumed: false,
@@ -334,6 +339,8 @@ export interface TemporalWorkflowRuntimeOptions<
     payload: Payload,
     executionId: string
   ) => Effect.Effect<Success, Error, R>
+  /** Must match the client engine prefix when starting child workflows. */
+  readonly workflowIdPrefix?: string | undefined
   readonly activityProxy?: TemporalActivityProxy | undefined
   readonly provide?: ((<A, E, R2>(effect: Effect.Effect<A, E, R2>) => Effect.Effect<A, E, never>)) | undefined
 }
@@ -401,7 +408,9 @@ const makeRuntimeEngine = (
         ? Effect.tryPromise({
           try: () =>
             startChild(workflow._tag, {
-              workflowId: options.executionId,
+              workflowId: patched("effect-temporal/child-workflow-ids-v1")
+                ? workflowIdFor(workflow._tag, options.executionId, state.workflowIdPrefix)
+                : options.executionId,
               args: [wireCodecsFor(workflow).encodePayload(options.payload)]
             }),
           catch: (cause) => cause
@@ -419,7 +428,9 @@ const makeRuntimeEngine = (
           return Effect.tryPromise({
             try: () =>
               executeChild(workflow._tag, {
-                workflowId: options.executionId,
+                workflowId: patched("effect-temporal/child-workflow-ids-v1")
+                  ? workflowIdFor(workflow._tag, options.executionId, state.workflowIdPrefix)
+                  : options.executionId,
                 args: [wireCodecsFor(workflow).encodePayload(options.payload)]
               }),
             catch: (cause) => cause
@@ -547,7 +558,7 @@ export const makeWorkflow = <Payload, Success, Error, R>(
     ensureSandboxPolyfills()
     const codecs = wireCodecsFor(options.workflow)
     const executionId = executionIdFromWorkflowId(workflowInfo().workflowId)
-    const state = makeRuntimeState(executionId)
+    const state = makeRuntimeState(executionId, options.workflowIdPrefix)
     installBaseHandlers(state)
     const decodedPayload = codecs.decodePayload(payload) as Payload
 
