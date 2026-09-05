@@ -174,22 +174,21 @@ export const preferTypedActivity: RuleModule = {
 }
 
 /**
- * `Effect.promise` / `Effect.tryPromise` thunks must take no parameters — a
- * parameterized function passed by reference is almost always a mistake that
- * captures non-deterministic behavior or never receives its arguments.
+ * `Effect.promise` / `Effect.tryPromise` thunks receive an optional AbortSignal.
+ * Additional parameters are never supplied by Effect.
  *
  * @since 1.0.0
  * @category Rules
  */
-export const zeroArityEffectPromise: RuleModule = {
+export const effectPromiseArity: RuleModule = {
   meta: {
     type: "problem",
     docs: {
-      description: "Require zero-arity thunks for Effect.promise and Effect.tryPromise"
+      description: "Allow only the AbortSignal parameter for Effect.promise and Effect.tryPromise"
     },
     messages: {
-      arity: "The thunk passed to Effect.{{method}} must take no parameters; it is invoked with none, "
-        + "so declared parameters stay undefined."
+      arity: "The thunk passed to Effect.{{method}} receives only an AbortSignal; "
+        + "additional parameters stay undefined."
     },
     schema: []
   },
@@ -218,7 +217,7 @@ export const zeroArityEffectPromise: RuleModule = {
         if (
           thunk !== undefined
           && (thunk.type === "ArrowFunctionExpression" || thunk.type === "FunctionExpression")
-          && thunk.params.length > 0
+          && thunk.params.length > 1
         ) {
           context.report({ data: { method: callee.property.name }, messageId: "arity", node: thunk })
         }
@@ -228,12 +227,22 @@ export const zeroArityEffectPromise: RuleModule = {
 }
 
 /**
+ * Compatibility alias for the corrected promise arity rule.
+ *
+ * @since 1.0.0
+ * @category Rules
+ * @deprecated Use effectPromiseArity instead.
+ */
+export const zeroArityEffectPromise = effectPromiseArity
+
+/**
  * All rules by name.
  *
  * @since 1.0.0
  * @category Plugin
  */
 export const rules = {
+  "effect-promise-arity": effectPromiseArity,
   "no-mixed-halves": noMixedHalves,
   "no-module-level-mutable": noModuleLevelMutable,
   "prefer-typed-activity": preferTypedActivity,
@@ -254,7 +263,7 @@ export const plugin = {
         "effect-temporal/no-mixed-halves": "error",
         "effect-temporal/no-module-level-mutable": "error",
         "effect-temporal/prefer-typed-activity": "warn",
-        "effect-temporal/zero-arity-effect-promise": "error"
+        "effect-temporal/effect-promise-arity": "error"
       }
     }
   },

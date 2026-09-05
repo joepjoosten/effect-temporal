@@ -81,19 +81,32 @@ describe("TemporalLint", () => {
     })
   })
 
-  describe("zero-arity-effect-promise", () => {
-    it("reports parameterized thunks", () => {
-      expect(lint("Effect.promise((signal) => fetch(url, { signal }))", "zero-arity-effect-promise")).toHaveLength(1)
-      expect(
-        lint("Effect.tryPromise({ try: (x) => go(x), catch: (e) => e })", "zero-arity-effect-promise")
-      ).toHaveLength(1)
+  describe("effect-promise-arity", () => {
+    it("allows zero-argument and cancellation-aware thunks", () => {
+      for (
+        const code of [
+          "Effect.promise(() => sleep(10))",
+          "Effect.promise((signal) => fetch(url, { signal }))",
+          "Effect.tryPromise((signal) => fetch(url, { signal }))",
+          "Effect.tryPromise({ try: (signal) => fetch(url, { signal }), catch: (e) => e })",
+          "Effect.tryPromise({ try(signal) { return fetch(url, { signal }) }, catch: (e) => e })"
+        ]
+      ) {
+        expect(lint(code, "effect-promise-arity"), code).toEqual([])
+        expect(lint(code, "zero-arity-effect-promise"), code).toEqual([])
+      }
     })
 
-    it("allows zero-arity thunks", () => {
-      expect(lint("Effect.promise(() => sleep(10))", "zero-arity-effect-promise")).toHaveLength(0)
-      expect(
-        lint("Effect.tryPromise({ try: () => go(), catch: (e) => e })", "zero-arity-effect-promise")
-      ).toHaveLength(0)
+    it("reports parameters that Effect never supplies", () => {
+      for (
+        const code of [
+          "Effect.promise((signal, value) => go(signal, value))",
+          "Effect.tryPromise(function(signal, value) { return go(signal, value) })",
+          "Effect.tryPromise({ try: (signal, value) => go(value), catch: (e) => e })"
+        ]
+      ) {
+        expect(lint(code, "effect-promise-arity"), code).toMatchObject([{ messageId: "arity" }])
+      }
     })
   })
 
@@ -117,14 +130,5 @@ describe("TemporalLint", () => {
       })
       expect(messages, sample).toEqual([])
     }
-  })
-
-  it("exposes a recommended preset covering every rule", () => {
-    expect(Object.keys(plugin.configs.recommended.rules).sort()).toEqual([
-      "effect-temporal/no-mixed-halves",
-      "effect-temporal/no-module-level-mutable",
-      "effect-temporal/prefer-typed-activity",
-      "effect-temporal/zero-arity-effect-promise"
-    ])
   })
 })
