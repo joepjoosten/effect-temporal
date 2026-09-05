@@ -1,9 +1,11 @@
 import * as TemporalTesting from "@effect-temporal/testing"
 import { describe, expect, it } from "@effect/vitest"
 import * as Effect from "effect/Effect"
+import * as Option from "effect/Option"
+import * as DurableDeferred from "effect/unstable/workflow/DurableDeferred"
 import { fileURLToPath } from "node:url"
 import * as TemporalNexusService from "../src/TemporalNexusService.js"
-import { purchaserWorkflow, quoteOperation, quoteWorkflow } from "./TemporalNexus.e2e-workflows.js"
+import { approval, purchaserWorkflow, quoteOperation, quoteWorkflow } from "./TemporalNexus.e2e-workflows.js"
 
 const workflowsPath = fileURLToPath(new URL("./TemporalNexus.e2e-workflows.ts", import.meta.url))
 
@@ -35,9 +37,28 @@ describe("TemporalNexus e2e", () => {
           })
         )
 
-        const executeProgram = purchaserWorkflow.execute({
-          endpoint: endpointName,
-          sku: "sku-1"
+        const executeProgram = Effect.gen(function*() {
+          const payload = { endpoint: endpointName, sku: "sku-1" }
+          const executionId = yield* purchaserWorkflow.executionId(payload)
+          yield* purchaserWorkflow.execute(payload, { discard: true })
+          let suspended = false
+          for (let attempt = 0; attempt < 200; attempt++) {
+            const result = yield* purchaserWorkflow.poll(executionId)
+            if (Option.isSome(result) && result.value._tag === "Suspended") {
+              suspended = true
+              break
+            }
+            yield* Effect.sleep(50)
+          }
+          expect(suspended).toBe(true)
+          const token = yield* DurableDeferred.tokenFromPayload(approval, { workflow: purchaserWorkflow, payload })
+          yield* DurableDeferred.succeed(approval, { token, value: "resume" })
+          const result = yield* purchaserWorkflow.execute(payload)
+          const client = yield* TemporalTesting.makeClient()
+          const events = yield* client.fetchHistoryEvents(`${purchaserWorkflow._tag}/${executionId}`)
+          // One successful and one typed-failing command; neither repeats after resume.
+          expect(events.filter((event) => event.nexusOperationScheduledEventAttributes)).toHaveLength(2)
+          return result
         }).pipe(
           Effect.provide(TemporalTesting.workflowEngineLayer({ taskQueue })),
           Effect.provideService(TemporalTesting.TemporalTestEnvironment, environment),

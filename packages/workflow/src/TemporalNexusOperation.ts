@@ -19,7 +19,7 @@ import type * as Exit from "effect/Exit"
 import * as Schema from "effect/Schema"
 import * as Workflow from "effect/unstable/workflow/Workflow"
 import * as NexusRpc from "nexus-rpc"
-import { TemporalSandboxRun } from "./TemporalWorkflowRuntime.js"
+import { memoizeOutboundCommand, TemporalSandboxRun } from "./TemporalWorkflowRuntime.js"
 import { findEncodedWorkflowExit, type TemporalValueCodecs, valueCodecsFor } from "./TemporalWorkflowWire.js"
 
 /**
@@ -121,11 +121,16 @@ export const call = <
     state.inFlight.add(scope)
     const outcome = yield* Effect.tryPromise({
       try: () =>
-        scope.run(() =>
-          client.executeOperation(
-            operation.operationName as never,
-            operation.payloadCodecs.encode(payload) as never
-          )
+        memoizeOutboundCommand(
+          state,
+          JSON.stringify(["nexus", target.endpoint, operation.serviceName, operation.operationName]),
+          () =>
+            scope.run(() =>
+              client.executeOperation(
+                operation.operationName as never,
+                operation.payloadCodecs.encode(payload) as never
+              )
+            )
         ),
       catch: (cause) => cause
     }).pipe(

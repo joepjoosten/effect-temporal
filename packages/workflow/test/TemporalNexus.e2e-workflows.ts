@@ -1,5 +1,6 @@
 import * as Effect from "effect/Effect"
 import * as Schema from "effect/Schema"
+import * as DurableDeferred from "effect/unstable/workflow/DurableDeferred"
 import * as Workflow from "effect/unstable/workflow/Workflow"
 import * as TemporalNexusOperation from "../src/TemporalNexusOperation.js"
 import * as TemporalWorkflowRuntime from "../src/TemporalWorkflowRuntime.js"
@@ -35,6 +36,8 @@ export const quoteOperation = TemporalNexusOperation.make("quote-service", "getQ
   error: QuoteRejected
 })
 
+export const approval = DurableDeferred.make("nexus-approval", { success: Schema.String })
+
 export const purchaserWorkflow = Workflow.make("NexusE2EPurchaserWorkflow", {
   payload: {
     endpoint: Schema.String,
@@ -60,6 +63,7 @@ export const NexusE2EPurchaserWorkflow = TemporalWorkflowRuntime.makeWorkflow({
       ).pipe(
         Effect.catchTag("QuoteRejected", (error) => Effect.succeed(`rejected(${error.reason})`))
       )
+      yield* DurableDeferred.await(approval)
       return `${quote.totalCents}:${rejection}`
     })
 })

@@ -18,7 +18,7 @@ import * as Effect from "effect/Effect"
 import * as Option from "effect/Option"
 import type * as Schema from "effect/Schema"
 import { type MailboxSignal, mailboxSignalName, workflowIdFor } from "./TemporalWorkflowProtocol.js"
-import { TemporalSandboxRun } from "./TemporalWorkflowRuntime.js"
+import { memoizeOutboundCommand, TemporalSandboxRun } from "./TemporalWorkflowRuntime.js"
 import { type TemporalValueCodecs, valueCodecsFor } from "./TemporalWorkflowWire.js"
 
 /**
@@ -116,15 +116,22 @@ export const offer = <Payload extends Schema.Top>(
     readonly workflowIdPrefix?: string | undefined
   },
   message: Payload["Type"]
-): Effect.Effect<void> =>
-  Effect.promise(() =>
-    getExternalWorkflowHandle(
-      workflowIdFor(target.workflow._tag, target.executionId, target.workflowIdPrefix)
-    ).signal(
-      mailboxSignalName,
-      {
-        name: mailbox.name,
-        payload: mailbox.codecs.encode(message)
-      } satisfies MailboxSignal
+): Effect.Effect<void, never, TemporalSandboxRun> =>
+  Effect.gen(function*() {
+    const state = yield* TemporalSandboxRun
+    const workflowId = workflowIdFor(target.workflow._tag, target.executionId, target.workflowIdPrefix)
+    yield* Effect.promise(() =>
+      memoizeOutboundCommand(
+        state,
+        JSON.stringify(["mailbox", workflowId, mailbox.name]),
+        () =>
+          getExternalWorkflowHandle(workflowId).signal(
+            mailboxSignalName,
+            {
+              name: mailbox.name,
+              payload: mailbox.codecs.encode(message)
+            } satisfies MailboxSignal
+          )
+      )
     )
-  )
+  })
