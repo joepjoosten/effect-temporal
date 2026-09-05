@@ -26,7 +26,11 @@ import * as Cause from "effect/Cause"
 import * as Effect from "effect/Effect"
 import * as Exit from "effect/Exit"
 import * as Schema from "effect/Schema"
-import { TemporalSandboxRun, type TemporalWorkflowRuntimeState } from "./TemporalWorkflowRuntime.js"
+import {
+  releaseCancellationScope,
+  TemporalSandboxRun,
+  type TemporalWorkflowRuntimeState
+} from "./TemporalWorkflowRuntime.js"
 import { type TemporalValueCodecs, valueCodecsFor } from "./TemporalWorkflowWire.js"
 
 /**
@@ -144,7 +148,7 @@ const invokeOnce = (
       catch: (cause) => new Error(`Typed activity "${activity.name}" failed`, { cause })
     }).pipe(
       Effect.orDie,
-      Effect.onExit(() => Effect.sync(() => state.inFlight.delete(scope)))
+      Effect.onExit((exit) => Effect.sync(() => releaseCancellationScope(state, scope, exit)))
     )
   })
 

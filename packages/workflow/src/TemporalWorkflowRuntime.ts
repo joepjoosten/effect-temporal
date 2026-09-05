@@ -246,6 +246,24 @@ export const memoizeOutboundCommand = <A>(
   return result as Promise<A>
 }
 
+/**
+ * Propagates Effect fiber interruption to a scheduled Temporal command before
+ * removing its scope from root-cancellation tracking.
+ *
+ * @since 1.0.0
+ * @category Runtime
+ */
+export const releaseCancellationScope = (
+  state: TemporalWorkflowRuntimeState,
+  scope: CancellationScope,
+  exit: Exit.Exit<unknown, unknown>
+): void => {
+  if (Exit.isFailure(exit) && Cause.hasInterrupts(exit.cause) && patched("effect-temporal/fiber-cancellation-v1")) {
+    scope.cancel()
+  }
+  state.inFlight.delete(scope)
+}
+
 const scheduleRuntimeClock = (state: TemporalWorkflowRuntimeState, clock: ScheduleClockSignal): void => {
   if (state.clocks.has(clock.name)) {
     return
@@ -565,7 +583,7 @@ const makeRuntimeEngine = (
         catch: (cause) => new Error(`Temporal activity "${activity.name}" failed`, { cause })
       }).pipe(
         Effect.orDie,
-        Effect.onExit(() => Effect.sync(() => state.inFlight.delete(scope)))
+        Effect.onExit((exit) => Effect.sync(() => releaseCancellationScope(state, scope, exit)))
       )
       const result = decodeWorkflowResult(encoded) as Workflow.Result<unknown, unknown>
       if (result._tag === "Complete") {
