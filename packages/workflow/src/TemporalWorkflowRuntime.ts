@@ -165,6 +165,8 @@ export interface TemporalWorkflowRuntimeState {
    */
   readonly typedActivityResults: Map<string, unknown>
   readonly typedActivitySeq: Map<string, number>
+  readonly outboundCalls: Map<string, Promise<unknown>>
+  readonly outboundSeq: Map<string, number>
   runScope?: CancellationScope | undefined
 }
 
@@ -214,8 +216,35 @@ export const makeRuntimeState = (
   updateResults: new Map(),
   childResults: new Map(),
   typedActivityResults: new Map(),
-  typedActivitySeq: new Map()
+  typedActivitySeq: new Map(),
+  outboundCalls: new Map(),
+  outboundSeq: new Map()
 })
+
+/**
+ * Reuses an outbound command at the same position across suspended passes.
+ * Both successful and failing outcomes are retained: explicit retries advance
+ * the sequence and remain new commands. Pending promises are shared too.
+ *
+ * @since 1.0.0
+ * @category Runtime
+ */
+export const memoizeOutboundCommand = <A>(
+  state: TemporalWorkflowRuntimeState,
+  key: string,
+  run: () => Promise<A>
+): Promise<A> => {
+  const legacy = !patched("effect-temporal/outbound-command-cache-v1")
+  const sequence = state.outboundSeq.get(key) ?? 0
+  state.outboundSeq.set(key, sequence + 1)
+  const memoKey = JSON.stringify([key, sequence])
+  let result = state.outboundCalls.get(memoKey)
+  if (legacy || result === undefined) {
+    result = run()
+    state.outboundCalls.set(memoKey, result)
+  }
+  return result as Promise<A>
+}
 
 const scheduleRuntimeClock = (state: TemporalWorkflowRuntimeState, clock: ScheduleClockSignal): void => {
   if (state.clocks.has(clock.name)) {
@@ -636,6 +665,7 @@ export const makeWorkflow = <Payload, Success, Error, R>(
         state.mailboxCursors.clear()
         state.updateCursors.clear()
         state.typedActivitySeq.clear()
+        state.outboundSeq.clear()
         const instance = WorkflowEngine.WorkflowInstance.initial(options.workflow, executionId)
         instance.interrupted = state.interrupted
         activeInstance = instance
