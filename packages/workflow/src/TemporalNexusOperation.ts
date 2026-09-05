@@ -19,7 +19,7 @@ import type * as Exit from "effect/Exit"
 import * as Schema from "effect/Schema"
 import * as Workflow from "effect/unstable/workflow/Workflow"
 import * as NexusRpc from "nexus-rpc"
-import { memoizeOutboundCommand, TemporalSandboxRun } from "./TemporalWorkflowRuntime.js"
+import { memoizeOutboundCommand, releaseCancellationScope, TemporalSandboxRun } from "./TemporalWorkflowRuntime.js"
 import { findEncodedWorkflowExit, type TemporalValueCodecs, valueCodecsFor } from "./TemporalWorkflowWire.js"
 
 /**
@@ -134,7 +134,7 @@ export const call = <
         ),
       catch: (cause) => cause
     }).pipe(
-      Effect.onExit(() => Effect.sync(() => state.inFlight.delete(scope))),
+      Effect.onExit((exit) => Effect.sync(() => releaseCancellationScope(state, scope, exit))),
       Effect.exit
     )
 
