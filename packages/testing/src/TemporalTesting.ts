@@ -3,12 +3,12 @@
  */
 import * as TemporalConnection from "@effect-temporal/client/TemporalConnection"
 import * as TemporalDataConverter from "@effect-temporal/client/TemporalDataConverter"
-import type * as TemporalClientError from "@effect-temporal/client/TemporalError"
+import * as TemporalClientError from "@effect-temporal/client/TemporalError"
 import * as TemporalClient from "@effect-temporal/client/TemporalWorkflowClient"
 import type * as TemporalError from "@effect-temporal/workflow/TemporalError"
 import * as TemporalWorker from "@effect-temporal/workflow/TemporalWorker"
 import * as TemporalWorkflowEngine from "@effect-temporal/workflow/TemporalWorkflowEngine"
-import { TestWorkflowEnvironment } from "@temporalio/testing"
+import { TestWorkflowEnvironment, TimeSkippingWorkflowClient } from "@temporalio/testing"
 import * as Context from "effect/Context"
 import * as Effect from "effect/Effect"
 import * as Layer from "effect/Layer"
@@ -200,6 +200,16 @@ export const makeClient = (
 > =>
   Effect.gen(function*() {
     const environment = yield* TemporalTestEnvironment
+    if (environment.unsafeEnvironment.supportsTimeSkipping) {
+      return yield* TemporalClientError.tryClientSync("TimeSkippingWorkflowClient.constructor", () =>
+        TemporalClient.fromUnsafe(
+          new TimeSkippingWorkflowClient({
+            ...options,
+            ...namespaceConfig(environment),
+            connection: environment.unsafeEnvironment.connection
+          })
+        ))
+    }
     const connection = yield* makeConnection
     return yield* TemporalClient.make({
       ...namespaceConfig(environment),
@@ -223,16 +233,8 @@ export const makeClientWithDataConverter = (
   TemporalDataConverter.TemporalDataConverter | TemporalTestEnvironment | Scope.Scope
 > =>
   Effect.gen(function*() {
-    const environment = yield* TemporalTestEnvironment
     const dataConverter = yield* TemporalDataConverter.TemporalDataConverter
-    const connection = yield* makeConnection
-    return yield* TemporalClient.make({
-      ...namespaceConfig(environment),
-      ...options,
-      dataConverter
-    }).pipe(
-      Effect.provideService(TemporalConnection.TemporalConnection, connection)
-    )
+    return yield* makeClient({ ...options, dataConverter })
   })
 
 /**
