@@ -1,5 +1,29 @@
 # @effect-temporal/workflow
 
+## 0.1.9
+
+### Patch Changes
+
+- [#69](https://github.com/joepjoosten/effect-temporal/pull/69) [`2789d96`](https://github.com/joepjoosten/effect-temporal/commit/2789d9629f273387d7b0b608a17d1a6dfb8f4b03) Thanks [@joepjoosten](https://github.com/joepjoosten)! - Use consistent child workflow IDs for client interactions, with configurable prefixes and a patch marker preserving legacy histories.
+
+- [#76](https://github.com/joepjoosten/effect-temporal/pull/76) [`a79d484`](https://github.com/joepjoosten/effect-temporal/commit/a79d4845c6a37984c9ccced1881300e448b7e729) Thanks [@joepjoosten](https://github.com/joepjoosten)! - Make the sandbox TextEncoder.encodeInto respect complete UTF-8 sequences and report accurate UTF-16 read offsets.
+
+- [#74](https://github.com/joepjoosten/effect-temporal/pull/74) [`ebdedb9`](https://github.com/joepjoosten/effect-temporal/commit/ebdedb99ce50b9520b8816d9ccb5993dc4600c60) Thanks [@joepjoosten](https://github.com/joepjoosten)! - Surface workflow-engine RPC failures instead of silently acknowledging failed commands or confusing infrastructure failures with workflow outcomes.
+
+- [#72](https://github.com/joepjoosten/effect-temporal/pull/72) [`58db67e`](https://github.com/joepjoosten/effect-temporal/commit/58db67e284124ac2e3cd9968540694891cee2f82) Thanks [@joepjoosten](https://github.com/joepjoosten)! - Propagate Effect fiber interruption to Temporal activity and Nexus cancellation scopes for races, timeouts, and explicit interruption.
+
+- [#71](https://github.com/joepjoosten/effect-temporal/pull/71) [`a22848c`](https://github.com/joepjoosten/effect-temporal/commit/a22848c084c17da8d1585fcbd34ed61fefb0082d) Thanks [@joepjoosten](https://github.com/joepjoosten)! - Memoize outbound mailbox and Nexus commands across suspended workflow passes while preserving explicit retries and legacy history replay.
+
+- [#77](https://github.com/joepjoosten/effect-temporal/pull/77) [`eb63a75`](https://github.com/joepjoosten/effect-temporal/commit/eb63a7511c35cfd0c1978b3fd665bc5d360dc2f8) Thanks [@joepjoosten](https://github.com/joepjoosten)! - Allow AbortSignal parameters in promise thunks. Replace the recommended zero-arity rule with effect-promise-arity while retaining the old name as a compatible alias.
+
+- [#78](https://github.com/joepjoosten/effect-temporal/pull/78) [`0b512d7`](https://github.com/joepjoosten/effect-temporal/commit/0b512d764c83aefc9d9dc50ef77f2a9b5263616d) Thanks [@joepjoosten](https://github.com/joepjoosten)! - Fix the quick-start worker and client layer composition so dependencies are provided correctly. Typecheck the published quick-start snippets during validation.
+
+- [#70](https://github.com/joepjoosten/effect-temporal/pull/70) [`93af648`](https://github.com/joepjoosten/effect-temporal/commit/93af6488dc35a6843a7cfe55ac59656804472443) Thanks [@joepjoosten](https://github.com/joepjoosten)! - Route cross-workflow deferred completions, control signals, and clock scheduling to the requested execution.
+
+- [#67](https://github.com/joepjoosten/effect-temporal/pull/67) [`40358a0`](https://github.com/joepjoosten/effect-temporal/commit/40358a0815ac5cf922d78b2079e9b2b2f4e83de4) Thanks [@joepjoosten](https://github.com/joepjoosten)! - Deduplicate durable updates by request ID, reject conflicting reuse, and recover completed responses after workflow closure.
+
+- [#73](https://github.com/joepjoosten/effect-temporal/pull/73) [`6b7ad7d`](https://github.com/joepjoosten/effect-temporal/commit/6b7ad7d8a51ab85896bc6849e21fb3cc67fdb167) Thanks [@joepjoosten](https://github.com/joepjoosten)! - Await worker shutdown before releasing native connections, including interrupted and never-started workers. Use the owned lifecycle in the test harness.
+
 ## 0.1.8
 
 ### Patch Changes
