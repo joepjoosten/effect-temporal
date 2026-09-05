@@ -148,10 +148,18 @@ export class SandboxTextEncoder {
   }
 
   encodeInto(source: string, destination: Uint8Array): { read: number; written: number } {
-    const encoded = this.encode(source)
-    const written = Math.min(encoded.length, destination.length)
-    destination.set(encoded.subarray(0, written))
-    return { read: source.length, written }
+    let read = 0
+    let written = 0
+    for (const codePoint of source) {
+      const encoded = this.encode(codePoint)
+      if (encoded.length > destination.length - written) {
+        break
+      }
+      destination.set(encoded, written)
+      read += codePoint.length
+      written += encoded.length
+    }
+    return { read, written }
   }
 }
 
