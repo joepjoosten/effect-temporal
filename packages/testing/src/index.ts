@@ -4,6 +4,16 @@
 export * from "./TemporalTesting.js"
 
 /**
+ * @since 1.0.0
+ */
+export * from "./TemporalStubClient.js"
+
+/**
+ * @since 1.0.0
+ */
+export * from "./TemporalWorkflowHarness.js"
+
+/**
  * A recording stub (test double) for the Temporal workflow client, for fast
  * unit tests of client-side code with zero servers.
  *

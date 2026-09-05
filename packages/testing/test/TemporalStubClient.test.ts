@@ -1,10 +1,10 @@
+import { makeStubTemporalClient } from "@effect-temporal/testing"
 import * as TemporalWorkflowEngine from "@effect-temporal/workflow/TemporalWorkflowEngine"
 import { describe, expect, it } from "@effect/vitest"
 import * as Effect from "effect/Effect"
 import * as Schema from "effect/Schema"
 import * as Workflow from "effect/unstable/workflow/Workflow"
 import * as WorkflowEngine from "effect/unstable/workflow/WorkflowEngine"
-import { makeStubTemporalClient } from "../src/TemporalStubClient.js"
 
 const stubWorkflow = Workflow.make("StubTestWorkflow", {
   payload: {
@@ -22,7 +22,7 @@ const runWithStub = <A, E>(
     Effect.gen(function*() {
       const engine = yield* TemporalWorkflowEngine.make({ taskQueue: "stub-queue" })
       return yield* effect.pipe(Effect.provideService(WorkflowEngine.WorkflowEngine, engine))
-    }).pipe(Effect.provide(stub.layer)) as Effect.Effect<A>
+    }).pipe(Effect.provide(stub.layer))
   )
 
 describe("makeStubTemporalClient", () => {
