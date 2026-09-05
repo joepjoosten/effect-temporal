@@ -52,6 +52,7 @@ export interface CompleteDeferredSignal {
  * @category Models
  */
 export interface ScheduleClockSignal {
+  readonly deferredName?: string | undefined
   readonly name: string
   readonly durationMs: number
 }
