@@ -148,6 +148,7 @@ export interface TemporalWorkflowRuntimeState {
    */
   readonly updateLogs: Map<string, Array<UpdateSignal>>
   readonly updateCursors: Map<string, number>
+  readonly updateRequests: Map<string, UpdateSignal>
   readonly updateResults: Map<string, unknown>
   /**
    * Completed child-workflow results keyed by child execution id, so a
@@ -203,6 +204,7 @@ export const makeRuntimeState = (
   mailboxCursors: new Map(),
   updateLogs: new Map(),
   updateCursors: new Map(),
+  updateRequests: new Map(),
   updateResults: new Map(),
   childResults: new Map(),
   typedActivityResults: new Map(),
@@ -262,6 +264,10 @@ export const installBaseHandlers = (
     log.push(payload)
   })
   setHandler(updateSignal, (request) => {
+    if (state.updateRequests.has(request.requestId)) {
+      return
+    }
+    state.updateRequests.set(request.requestId, request)
     let log = state.updateLogs.get(request.name)
     if (log === undefined) {
       log = []
@@ -272,8 +278,8 @@ export const installBaseHandlers = (
   setHandler(updateResultQuery, (requestId) => {
     const exit = state.updateResults.get(requestId)
     return exit === undefined
-      ? { found: false }
-      : { found: true, exit }
+      ? { found: false, request: state.updateRequests.get(requestId) }
+      : { found: true, exit, request: state.updateRequests.get(requestId) }
   })
 }
 

@@ -150,6 +150,7 @@ export interface UpdateSignal {
  * @category Models
  */
 export interface TemporalUpdateResult {
+  readonly request?: UpdateSignal | undefined
   readonly found: boolean
   readonly exit?: unknown
 }
