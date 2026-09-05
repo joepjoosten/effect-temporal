@@ -212,6 +212,7 @@ export const make = (
           scheduleClockSignalName,
           {
             name: options.clock.name,
+            deferredName: options.clock.deferred.name,
             durationMs: Duration.toMillis(options.clock.duration)
           } satisfies ScheduleClockSignal
         ).pipe(Effect.catchTag("TemporalClientError", () => Effect.void))

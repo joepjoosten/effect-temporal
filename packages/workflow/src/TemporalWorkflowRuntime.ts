@@ -11,6 +11,7 @@ import {
   defineQuery,
   defineSignal,
   executeChild,
+  getExternalWorkflowHandle,
   patched,
   proxyActivities,
   proxyLocalActivities,
@@ -216,6 +217,20 @@ export const makeRuntimeState = (
   typedActivitySeq: new Map()
 })
 
+const scheduleRuntimeClock = (state: TemporalWorkflowRuntimeState, clock: ScheduleClockSignal): void => {
+  if (state.clocks.has(clock.name)) {
+    return
+  }
+  state.clocks.set(clock.name, clock)
+  void CancellationScope.nonCancellable(() => sleep(clock.durationMs)).then(() => {
+    state.deferreds.set(clock.deferredName ?? `DurableClock/${clock.name}`, encodeDeferredExit(Exit.void))
+    if (!state.interrupted) {
+      state.resumed = true
+      state.status = "running"
+    }
+  })
+}
+
 /**
  * @since 1.0.0
  * @category Runtime
@@ -252,7 +267,11 @@ export const installBaseHandlers = (
     }
   })
   setHandler(scheduleClockSignal, (clock) => {
-    state.clocks.set(clock.name, clock)
+    if (patched("effect-temporal/signal-clock-v1")) {
+      scheduleRuntimeClock(state, clock)
+    } else {
+      state.clocks.set(clock.name, clock)
+    }
   })
   setHandler(stateCellQuery, (name) => {
     const value = state.stateCells.get(name)
@@ -399,9 +418,25 @@ const makeRuntimeEngine = (
   activityCaller: Record<
     string,
     (input: TemporalActivityInvocation) => Promise<Workflow.ResultEncoded<unknown, unknown>>
-  >
-): WorkflowEngine.WorkflowEngine["Service"] =>
-  WorkflowEngine.makeUnsafe({
+  >,
+  workflowName: string
+): WorkflowEngine.WorkflowEngine["Service"] => {
+  const isLocal = (name: string, executionId: string): boolean =>
+    (name === workflowName && executionId === state.executionId)
+    || !patched("effect-temporal/target-workflow-routing-v1")
+  const signalTarget = (name: string, executionId: string, signal: string, ...args: Array<unknown>) =>
+    Effect.promise(() =>
+      getExternalWorkflowHandle(
+        workflowIdFor(name, executionId, state.workflowIdPrefix)
+      ).signal(signal, ...args)
+    )
+  const control = (signal: string, change: () => void) => (workflow: Workflow.Any, executionId: string) =>
+    Effect.suspend(() =>
+      isLocal(workflow._tag, executionId)
+        ? Effect.sync(change)
+        : signalTarget(workflow._tag, executionId, signal)
+    )
+  return WorkflowEngine.makeUnsafe({
     register: () => unsupported("Workflow registration is not available inside a Temporal workflow runtime"),
     execute: (workflow: Workflow.Any, options: any) =>
       options.discard
@@ -452,24 +487,21 @@ const makeRuntimeEngine = (
           )
         }) as any,
     poll: () => unsupported("Workflow polling is not available inside a Temporal workflow runtime"),
-    interrupt: () =>
-      Effect.sync(() => {
-        state.interrupted = true
-        state.resumed = false
-        state.status = "suspended"
-      }),
-    interruptUnsafe: () =>
-      Effect.sync(() => {
-        state.interrupted = true
-        state.resumed = false
-        state.status = "suspended"
-      }),
-    resume: () =>
-      Effect.sync(() => {
-        state.interrupted = false
-        state.resumed = true
-        state.status = "running"
-      }),
+    interrupt: control(interruptSignalName, () => {
+      state.interrupted = true
+      state.resumed = false
+      state.status = "suspended"
+    }),
+    interruptUnsafe: control(interruptSignalName, () => {
+      state.interrupted = true
+      state.resumed = false
+      state.status = "suspended"
+    }),
+    resume: control(resumeSignalName, () => {
+      state.interrupted = false
+      state.resumed = true
+      state.status = "running"
+    }),
     activityExecute: Effect.fnUntraced(function*(activity, attempt) {
       const invoke = activityCaller[activity.name]
       if (invoke === undefined) {
@@ -517,33 +549,40 @@ const makeRuntimeEngine = (
         const exit = state.deferreds.get(deferred.name)
         return exit === undefined ? Option.none() : Option.some(decodeDeferredExit(exit))
       }),
-    deferredDone: ({ deferredName, exit }) =>
-      Effect.sync(() => {
-        state.deferreds.set(deferredName, encodeDeferredExit(exit))
-        if (!state.interrupted) {
-          state.resumed = true
-          state.status = "running"
+    deferredDone: ({ deferredName, executionId, exit, workflowName }) =>
+      Effect.suspend(() => {
+        if (!isLocal(workflowName, executionId)) {
+          return signalTarget(
+            workflowName,
+            executionId,
+            completeDeferredSignalName,
+            {
+              name: deferredName,
+              exit: encodeDeferredExit(exit)
+            } satisfies CompleteDeferredSignal
+          )
         }
-      }),
-    scheduleClock: (_workflow, options) =>
-      Effect.sync(() => {
-        if (state.clocks.has(options.clock.name)) {
-          return
-        }
-        const clock = {
-          name: options.clock.name,
-          durationMs: Duration.toMillis(options.clock.duration)
-        } satisfies ScheduleClockSignal
-        state.clocks.set(clock.name, clock)
-        void sleep(clock.durationMs).then(() => {
-          state.deferreds.set(options.clock.deferred.name, encodeDeferredExit(Exit.void))
+        return Effect.sync(() => {
+          state.deferreds.set(deferredName, encodeDeferredExit(exit))
           if (!state.interrupted) {
             state.resumed = true
             state.status = "running"
           }
         })
+      }),
+    scheduleClock: (workflow, options) =>
+      Effect.suspend(() => {
+        const clock = {
+          name: options.clock.name,
+          durationMs: Duration.toMillis(options.clock.duration),
+          deferredName: options.clock.deferred.name
+        } satisfies ScheduleClockSignal
+        return isLocal(workflow._tag, options.executionId)
+          ? Effect.sync(() => scheduleRuntimeClock(state, clock))
+          : signalTarget(workflow._tag, options.executionId, scheduleClockSignalName, clock)
       })
   })
+}
 
 /**
  * @since 1.0.0
@@ -600,7 +639,7 @@ export const makeWorkflow = <Payload, Success, Error, R>(
         const instance = WorkflowEngine.WorkflowInstance.initial(options.workflow, executionId)
         instance.interrupted = state.interrupted
         activeInstance = instance
-        const engine = makeRuntimeEngine(state, activityCaller)
+        const engine = makeRuntimeEngine(state, activityCaller, options.workflow._tag)
         const base = options.execute(decodedPayload, executionId).pipe(
           Effect.onExit(() => {
             if (!state.interrupted) {
