@@ -26,6 +26,35 @@ describe("TemporalSandboxPolyfills", () => {
     }
   })
 
+  it("encodeInto matches platform offsets and bytes at every buffer boundary", () => {
+    for (const input of trickyStrings) {
+      const platform = new TextEncoder()
+      const sandbox = new SandboxTextEncoder()
+      for (let size = 0; size <= platform.encode(input).length + 1; size++) {
+        const expected = new Uint8Array(size).fill(0xff)
+        const actual = new Uint8Array(size).fill(0xff)
+        expect(sandbox.encodeInto(input, actual), `${JSON.stringify(input)} / ${size}`)
+          .toEqual(platform.encodeInto(input, expected))
+        expect(actual).toEqual(expected)
+      }
+    }
+  })
+
+  it("streams text without skipping input or writing partial characters", () => {
+    const input = "a€😀\ud800z"
+    const encoder = new SandboxTextEncoder()
+    const output: Array<number> = []
+    let offset = 0
+    while (offset < input.length) {
+      const buffer = new Uint8Array(4)
+      const { read, written } = encoder.encodeInto(input.slice(offset), buffer)
+      expect(read).toBeGreaterThan(0)
+      for (const byte of buffer.subarray(0, written)) output.push(byte)
+      offset += read
+    }
+    expect(output).toEqual(Array.from(new TextEncoder().encode(input)))
+  })
+
   it("sandboxSubtleDigest matches the platform crypto.subtle SHA-256", async () => {
     const encoder = new TextEncoder()
     for (const input of trickyStrings) {
