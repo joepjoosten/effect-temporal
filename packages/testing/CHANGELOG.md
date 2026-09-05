@@ -1,5 +1,18 @@
 # @effect-temporal/testing
 
+## 0.1.9
+
+### Patch Changes
+
+- [#79](https://github.com/joepjoosten/effect-temporal/pull/79) [`fce7c3b`](https://github.com/joepjoosten/effect-temporal/commit/fce7c3b4193e8a54892202120f47951c6b681ca3) Thanks [@joepjoosten](https://github.com/joepjoosten)! - Export makeWorkflowTestHarness and makeStubTemporalClient directly from the package root as documented, alongside the existing namespace exports.
+
+- [#75](https://github.com/joepjoosten/effect-temporal/pull/75) [`1a000af`](https://github.com/joepjoosten/effect-temporal/commit/1a000afdd1db36c7d7ef020690a97a5f6998650a) Thanks [@joepjoosten](https://github.com/joepjoosten)! - Preserve automatic time skipping when awaiting workflow results through testing clients, engines, and harnesses, including custom data converters.
+
+- [#73](https://github.com/joepjoosten/effect-temporal/pull/73) [`6b7ad7d`](https://github.com/joepjoosten/effect-temporal/commit/6b7ad7d8a51ab85896bc6849e21fb3cc67fdb167) Thanks [@joepjoosten](https://github.com/joepjoosten)! - Await worker shutdown before releasing native connections, including interrupted and never-started workers. Use the owned lifecycle in the test harness.
+
+- Updated dependencies [[`2789d96`](https://github.com/joepjoosten/effect-temporal/commit/2789d9629f273387d7b0b608a17d1a6dfb8f4b03), [`a79d484`](https://github.com/joepjoosten/effect-temporal/commit/a79d4845c6a37984c9ccced1881300e448b7e729), [`ebdedb9`](https://github.com/joepjoosten/effect-temporal/commit/ebdedb99ce50b9520b8816d9ccb5993dc4600c60), [`58db67e`](https://github.com/joepjoosten/effect-temporal/commit/58db67e284124ac2e3cd9968540694891cee2f82), [`a22848c`](https://github.com/joepjoosten/effect-temporal/commit/a22848c084c17da8d1585fcbd34ed61fefb0082d), [`eb63a75`](https://github.com/joepjoosten/effect-temporal/commit/eb63a7511c35cfd0c1978b3fd665bc5d360dc2f8), [`0b512d7`](https://github.com/joepjoosten/effect-temporal/commit/0b512d764c83aefc9d9dc50ef77f2a9b5263616d), [`93af648`](https://github.com/joepjoosten/effect-temporal/commit/93af6488dc35a6843a7cfe55ac59656804472443), [`40358a0`](https://github.com/joepjoosten/effect-temporal/commit/40358a0815ac5cf922d78b2079e9b2b2f4e83de4), [`6b7ad7d`](https://github.com/joepjoosten/effect-temporal/commit/6b7ad7d8a51ab85896bc6849e21fb3cc67fdb167)]:
+  - @effect-temporal/workflow@0.1.9
+
 ## 0.1.8
 
 ### Patch Changes
