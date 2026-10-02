@@ -8,7 +8,7 @@ import { fileURLToPath } from "node:url"
 import * as Interactions from "../src/TemporalWorkflowInteractions.js"
 import { approval, child, parent, parentDone, prefixedParent, status } from "./child-addressing-workflows.js"
 
-describe("child workflow addressing", () => {
+describe("child workflow addressing", { concurrent: false }, () => {
   it("replays legacy histories without changing their recorded child IDs", async () => {
     const history = await Effect.runPromise(Effect.scoped(Effect.gen(function*() {
       const harness = yield* makeWorkflowTestHarness({
