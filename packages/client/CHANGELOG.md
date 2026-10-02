@@ -1,5 +1,13 @@
 # @effect-temporal/client
 
+## 0.3.0
+
+### Minor Changes
+
+- [#80](https://github.com/joepjoosten/effect-temporal/pull/80) [`4598c5b`](https://github.com/joepjoosten/effect-temporal/commit/4598c5bc1682bb15de11338dbeb99387bcae810e) Thanks [@joepjoosten](https://github.com/joepjoosten)! - Upgrade effect to 4.0.0.
+
+  Effect 4.0.0 promotes the workflow modules out of `unstable`, so imports move from `effect/unstable/workflow/*` to `effect/workflow/*` (e.g. `effect/workflow/Workflow`, `effect/workflow/DurableDeferred`). Applications defining workflows must upgrade to `effect@4.0.0` and update these import paths.
+
 ## 0.2.4
 
 ### Patch Changes
