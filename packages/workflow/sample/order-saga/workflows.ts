@@ -8,8 +8,8 @@
  * `makeWorkflow` is a Temporal workflow function.
  */
 import * as Effect from "effect/Effect"
-import * as DurableClock from "effect/unstable/workflow/DurableClock"
-import * as DurableDeferred from "effect/unstable/workflow/DurableDeferred"
+import * as DurableClock from "effect/workflow/DurableClock"
+import * as DurableDeferred from "effect/workflow/DurableDeferred"
 import * as TemporalContinueAsNew from "../../src/TemporalContinueAsNew.js"
 import * as TemporalDurableMailbox from "../../src/TemporalDurableMailbox.js"
 import * as TemporalDurableUpdate from "../../src/TemporalDurableUpdate.js"

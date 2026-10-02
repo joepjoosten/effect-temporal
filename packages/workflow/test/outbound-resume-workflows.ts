@@ -1,7 +1,7 @@
 import * as Effect from "effect/Effect"
 import * as Schema from "effect/Schema"
-import * as DurableDeferred from "effect/unstable/workflow/DurableDeferred"
-import * as Workflow from "effect/unstable/workflow/Workflow"
+import * as DurableDeferred from "effect/workflow/DurableDeferred"
+import * as Workflow from "effect/workflow/Workflow"
 import * as Mailbox from "../src/TemporalDurableMailbox.js"
 import * as Runtime from "../src/TemporalWorkflowRuntime.js"
 

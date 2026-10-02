@@ -28,9 +28,9 @@ import * as Exit from "effect/Exit"
 import * as Fiber from "effect/Fiber"
 import * as Option from "effect/Option"
 import * as Schema from "effect/Schema"
-import * as Activity from "effect/unstable/workflow/Activity"
-import * as Workflow from "effect/unstable/workflow/Workflow"
-import * as WorkflowEngine from "effect/unstable/workflow/WorkflowEngine"
+import * as Activity from "effect/workflow/Activity"
+import * as Workflow from "effect/workflow/Workflow"
+import * as WorkflowEngine from "effect/workflow/WorkflowEngine"
 import type {
   CompleteDeferredSignal,
   MailboxSignal,

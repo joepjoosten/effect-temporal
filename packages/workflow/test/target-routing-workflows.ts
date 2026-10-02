@@ -1,9 +1,9 @@
 import * as Effect from "effect/Effect"
 import * as Schema from "effect/Schema"
-import * as DurableClock from "effect/unstable/workflow/DurableClock"
-import * as DurableDeferred from "effect/unstable/workflow/DurableDeferred"
-import * as Workflow from "effect/unstable/workflow/Workflow"
-import * as WorkflowEngine from "effect/unstable/workflow/WorkflowEngine"
+import * as DurableClock from "effect/workflow/DurableClock"
+import * as DurableDeferred from "effect/workflow/DurableDeferred"
+import * as Workflow from "effect/workflow/Workflow"
+import * as WorkflowEngine from "effect/workflow/WorkflowEngine"
 import * as Runtime from "../src/TemporalWorkflowRuntime.js"
 
 const Mode = Schema.Literals(["complete", "interrupt", "interruptUnsafe", "resume", "clock"])

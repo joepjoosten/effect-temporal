@@ -6,7 +6,7 @@
  */
 import * as Effect from "effect/Effect"
 import * as Layer from "effect/Layer"
-import * as DurableDeferred from "effect/unstable/workflow/DurableDeferred"
+import * as DurableDeferred from "effect/workflow/DurableDeferred"
 import * as TemporalClient from "../../src/TemporalClient.js"
 import * as TemporalConnection from "../../src/TemporalConnection.js"
 import * as TemporalWorkflowEngine from "../../src/TemporalWorkflowEngine.js"

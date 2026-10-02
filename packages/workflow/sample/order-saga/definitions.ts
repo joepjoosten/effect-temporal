@@ -7,8 +7,8 @@
  * `@effect-temporal/workflow/TemporalTypedActivity` etc.
  */
 import * as Schema from "effect/Schema"
-import * as DurableDeferred from "effect/unstable/workflow/DurableDeferred"
-import * as Workflow from "effect/unstable/workflow/Workflow"
+import * as DurableDeferred from "effect/workflow/DurableDeferred"
+import * as Workflow from "effect/workflow/Workflow"
 import * as TemporalDurableMailbox from "../../src/TemporalDurableMailbox.js"
 import * as TemporalDurableUpdate from "../../src/TemporalDurableUpdate.js"
 import * as TemporalNexusOperation from "../../src/TemporalNexusOperation.js"

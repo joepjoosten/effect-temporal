@@ -13,7 +13,7 @@ import type * as TemporalError from "@effect-temporal/workflow/TemporalError"
 import * as TemporalWorkflowEngine from "@effect-temporal/workflow/TemporalWorkflowEngine"
 import * as Effect from "effect/Effect"
 import type * as Scope from "effect/Scope"
-import * as WorkflowEngine from "effect/unstable/workflow/WorkflowEngine"
+import * as WorkflowEngine from "effect/workflow/WorkflowEngine"
 import * as TemporalTesting from "./TemporalTesting.js"
 
 /**
