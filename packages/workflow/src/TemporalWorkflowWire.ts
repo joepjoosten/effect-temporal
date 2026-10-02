@@ -17,7 +17,7 @@ import { ApplicationFailure } from "@temporalio/common"
 import * as Cause from "effect/Cause"
 import * as Exit from "effect/Exit"
 import * as Schema from "effect/Schema"
-import * as Workflow from "effect/unstable/workflow/Workflow"
+import * as Workflow from "effect/workflow/Workflow"
 
 /**
  * The `ApplicationFailure.type` marking a Temporal workflow failure that

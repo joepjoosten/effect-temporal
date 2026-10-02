@@ -3,8 +3,8 @@
 // would require.
 import * as Effect from "effect/Effect"
 import * as Schema from "effect/Schema"
-import * as DurableClock from "effect/unstable/workflow/DurableClock"
-import * as Workflow from "effect/unstable/workflow/Workflow"
+import * as DurableClock from "effect/workflow/DurableClock"
+import * as Workflow from "effect/workflow/Workflow"
 import * as TemporalWorkflowRuntime from "../../workflow/src/TemporalWorkflowRuntime.js"
 
 export const echoWorkflow = Workflow.make("HarnessEchoWorkflow", {

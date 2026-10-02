@@ -3,7 +3,7 @@ import { describe, expect, it } from "@effect/vitest"
 import { Worker } from "@temporalio/worker"
 import * as Effect from "effect/Effect"
 import * as Option from "effect/Option"
-import * as DurableDeferred from "effect/unstable/workflow/DurableDeferred"
+import * as DurableDeferred from "effect/workflow/DurableDeferred"
 import { fileURLToPath } from "node:url"
 import { approval, receiver, sender } from "./outbound-resume-workflows.js"
 

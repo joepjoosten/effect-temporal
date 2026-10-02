@@ -1,6 +1,6 @@
 # Effect Temporal
 
-Run [Effect](https://effect.website) workflows (`effect/unstable/workflow`) on
+Run [Effect](https://effect.website) workflows (`effect/workflow`) on
 [Temporal](https://temporal.io): author workflows as Effect programs with
 schemas and typed errors, and let Temporal own durable execution, replay,
 retries, task queues, and the operational tooling around them.
@@ -52,7 +52,7 @@ The monorepo publishes three packages:
 
 ## How it works
 
-Effect workflows are described with `effect/unstable/workflow`: a workflow
+Effect workflows are described with `effect/workflow`: a workflow
 name, payload/success/error schemas, an idempotency key, and an Effect program
 as the body. The integration maps that surface onto Temporal in layers:
 
@@ -95,8 +95,8 @@ side and running a matching Temporal worker for the same task queue.
 ```ts
 // workflows/definitions.ts — keep this file sandbox-safe
 import * as Schema from "effect/Schema"
-import * as Workflow from "effect/unstable/workflow/Workflow"
-import * as DurableDeferred from "effect/unstable/workflow/DurableDeferred"
+import * as Workflow from "effect/workflow/Workflow"
+import * as DurableDeferred from "effect/workflow/DurableDeferred"
 import * as TemporalTypedActivity from "@effect-temporal/workflow/TemporalTypedActivity"
 
 export class ChargeDeclined extends Schema.TaggedError<ChargeDeclined>()("ChargeDeclined", {
@@ -127,7 +127,7 @@ export const managerApproval = DurableDeferred.make("manager-approval", {
 ```ts
 // workflows/bundle.ts — the file passed to the worker as workflowsPath
 import * as Effect from "effect/Effect"
-import * as DurableDeferred from "effect/unstable/workflow/DurableDeferred"
+import * as DurableDeferred from "effect/workflow/DurableDeferred"
 import * as TemporalTypedActivity from "@effect-temporal/workflow/TemporalTypedActivity"
 import * as TemporalWorkflowRuntime from "@effect-temporal/workflow/TemporalWorkflowRuntime"
 import { chargeCard, managerApproval, orderWorkflow } from "./definitions.js"

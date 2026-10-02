@@ -1,8 +1,8 @@
 import * as Effect from "effect/Effect"
 import * as Fiber from "effect/Fiber"
 import * as Schema from "effect/Schema"
-import * as Activity from "effect/unstable/workflow/Activity"
-import * as Workflow from "effect/unstable/workflow/Workflow"
+import * as Activity from "effect/workflow/Activity"
+import * as Workflow from "effect/workflow/Workflow"
 import * as Typed from "../src/TemporalTypedActivity.js"
 import * as Runtime from "../src/TemporalWorkflowRuntime.js"
 

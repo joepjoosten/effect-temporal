@@ -28,7 +28,7 @@
     "@effect-temporal/workflow": "workspace:*",
     "@temporalio/client": "^1.23.0",
     "@temporalio/testing": "^1.23.0",
-    "effect": "4.0.0-rc.112"
+    "effect": "4.0.0"
   },
   "effect": {
     "generateExports": {

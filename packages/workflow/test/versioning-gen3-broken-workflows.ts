@@ -1,6 +1,6 @@
 import * as Effect from "effect/Effect"
 import * as Schema from "effect/Schema"
-import * as Workflow from "effect/unstable/workflow/Workflow"
+import * as Workflow from "effect/workflow/Workflow"
 import * as TemporalVersioning from "../src/TemporalVersioning.js"
 import * as TemporalWorkflowRuntime from "../src/TemporalWorkflowRuntime.js"
 

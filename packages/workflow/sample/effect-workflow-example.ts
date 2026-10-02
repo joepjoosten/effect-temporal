@@ -5,11 +5,11 @@ import * as Layer from "effect/Layer"
 import * as Option from "effect/Option"
 import * as Schedule from "effect/Schedule"
 import * as Schema from "effect/Schema"
-import * as Activity from "effect/unstable/workflow/Activity"
-import * as DurableClock from "effect/unstable/workflow/DurableClock"
-import * as DurableDeferred from "effect/unstable/workflow/DurableDeferred"
-import * as Workflow from "effect/unstable/workflow/Workflow"
-import * as WorkflowEngine from "effect/unstable/workflow/WorkflowEngine"
+import * as Activity from "effect/workflow/Activity"
+import * as DurableClock from "effect/workflow/DurableClock"
+import * as DurableDeferred from "effect/workflow/DurableDeferred"
+import * as Workflow from "effect/workflow/Workflow"
+import * as WorkflowEngine from "effect/workflow/WorkflowEngine"
 
 export class ReserveFailed extends Schema.TaggedError<ReserveFailed>()("ReserveFailed", {}) {}
 export class ApprovalDenied extends Schema.TaggedError<ApprovalDenied>()("ApprovalDenied", {}) {}

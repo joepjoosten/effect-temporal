@@ -3,7 +3,7 @@ import * as Cause from "effect/Cause"
 import * as Exit from "effect/Exit"
 import * as Option from "effect/Option"
 import * as Schema from "effect/Schema"
-import * as Workflow from "effect/unstable/workflow/Workflow"
+import * as Workflow from "effect/workflow/Workflow"
 import {
   decodeDeferredExit,
   decodeWorkflowFailure,

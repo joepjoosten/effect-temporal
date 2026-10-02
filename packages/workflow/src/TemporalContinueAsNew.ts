@@ -16,7 +16,7 @@
 import { makeContinueAsNewFunc } from "@temporalio/workflow"
 import * as Effect from "effect/Effect"
 import type * as Schema from "effect/Schema"
-import type * as Workflow from "effect/unstable/workflow/Workflow"
+import type * as Workflow from "effect/workflow/Workflow"
 import { wireCodecsFor } from "./TemporalWorkflowWire.js"
 
 /**

@@ -16,7 +16,7 @@
 import { startWorkflow, WorkflowRunOperationHandler } from "@temporalio/nexus"
 import * as Effect from "effect/Effect"
 import type * as Schema from "effect/Schema"
-import type * as Workflow from "effect/unstable/workflow/Workflow"
+import type * as Workflow from "effect/workflow/Workflow"
 import * as NexusRpc from "nexus-rpc"
 import type { TemporalNexusOperation } from "./TemporalNexusOperation.js"
 import { workflowIdFor } from "./TemporalWorkflowProtocol.js"

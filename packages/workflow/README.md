@@ -1,6 +1,6 @@
 # `@effect-temporal/workflow`
 
-Run Effect workflows (`effect/unstable/workflow`) on Temporal: a
+Run Effect workflows (`effect/workflow`) on Temporal: a
 `WorkflowEngine` implementation, the deterministic sandbox runtime, and the
 primitives for entity workflows, typed activities, versioning, and Nexus.
 
