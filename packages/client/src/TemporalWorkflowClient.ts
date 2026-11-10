@@ -22,11 +22,11 @@ import {
   type WorkflowStartOptions,
   type WorkflowUpdateOptions
 } from "@temporalio/client"
-import { executionInfoFromRaw } from "@temporalio/client/lib/helpers.js"
+import { executionInfoFromRaw } from "@temporalio/client/lib/helpers"
 import {
   decodeArrayFromPayloads,
   decodeOptionalFailureToOptionalError
-} from "@temporalio/common/lib/internal-non-workflow/codec-helpers.js"
+} from "@temporalio/common/internal/internal-non-workflow"
 import type { temporal } from "@temporalio/proto"
 import * as Context from "effect/Context"
 import * as Effect from "effect/Effect"

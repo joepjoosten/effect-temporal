@@ -1,7 +1,7 @@
 import { describe, expect, it } from "@effect/vitest"
 import type { Workflow, WorkflowClient } from "@temporalio/client"
 import { defaultPayloadConverter } from "@temporalio/common"
-import { loadDataConverter } from "@temporalio/common/lib/internal-non-workflow/data-converter-helpers.js"
+import { loadDataConverter } from "@temporalio/common/internal/internal-non-workflow"
 import { temporal } from "@temporalio/proto"
 import * as Effect from "effect/Effect"
 import * as Schema from "effect/Schema"
