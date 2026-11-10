@@ -25,12 +25,12 @@
   },
   "dependencies": {
     "@effect-temporal/client": "workspace:*",
-    "@temporalio/client": "^1.23.0",
-    "@temporalio/common": "^1.23.0",
-    "@temporalio/nexus": "^1.23.0",
-    "@temporalio/worker": "^1.23.0",
-    "@temporalio/workflow": "^1.23.0",
-    "effect": "4.0.0",
+    "@temporalio/client": "^1.25.0",
+    "@temporalio/common": "^1.25.0",
+    "@temporalio/nexus": "^1.25.0",
+    "@temporalio/worker": "^1.25.0",
+    "@temporalio/workflow": "^1.25.0",
+    "effect": "4.1.3",
     "nexus-rpc": "^0.0.3"
   },
   "effect": {
@@ -46,7 +46,8 @@
     }
   },
   "devDependencies": {
-    "@typescript-eslint/parser": "^8.58.0",
-    "eslint": "^9.39.4"
+    "@typescript-eslint/parser": "^8.72.2",
+    "eslint": "^10.14.0",
+    "typescript": "^6.0.3"
   }
 }

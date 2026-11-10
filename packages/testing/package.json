@@ -26,9 +26,9 @@
   "dependencies": {
     "@effect-temporal/client": "workspace:*",
     "@effect-temporal/workflow": "workspace:*",
-    "@temporalio/client": "^1.23.0",
-    "@temporalio/testing": "^1.23.0",
-    "effect": "4.0.0"
+    "@temporalio/client": "^1.25.0",
+    "@temporalio/testing": "^1.25.0",
+    "effect": "4.1.3"
   },
   "effect": {
     "generateExports": {
@@ -43,6 +43,6 @@
     }
   },
   "devDependencies": {
-    "@temporalio/workflow": "^1.23.0"
+    "@temporalio/workflow": "^1.25.0"
   }
 }
