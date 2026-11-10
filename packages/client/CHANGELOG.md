@@ -1,5 +1,13 @@
 # @effect-temporal/client
 
+## 0.4.0
+
+### Minor Changes
+
+- [#82](https://github.com/joepjoosten/effect-temporal/pull/82) [`51724c0`](https://github.com/joepjoosten/effect-temporal/commit/51724c0e378d477c31c83be5b97faba5985855fd) Thanks [@joepjoosten](https://github.com/joepjoosten)! - Upgrade effect to 4.1.3 and the Temporal SDK to 1.25.0.
+
+  Applications must upgrade to `effect@4.1.3` and `@temporalio/*@^1.25.0`. Temporal 1.25 added package `exports` maps, so the client now imports SDK internals through the exported `@temporalio/common/internal/internal-non-workflow` and `@temporalio/client/lib/helpers` paths.
+
 ## 0.3.0
 
 ### Minor Changes
