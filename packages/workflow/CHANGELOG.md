@@ -1,5 +1,19 @@
 # @effect-temporal/workflow
 
+## 0.4.0
+
+### Minor Changes
+
+- [#85](https://github.com/joepjoosten/effect-temporal/pull/85) [`812ce0b`](https://github.com/joepjoosten/effect-temporal/commit/812ce0bc5b7c178069b512fe222e6bc6ecdc5263) Thanks [@joepjoosten](https://github.com/joepjoosten)! - Add `TemporalWorkflowProtocol.legacyExecutionId` and the `legacyChildExecutionIds` runtime option for workflows started before the Effect execution-id digest change.
+
+  `effect@4.0.0-rc.118` changed the `workflow.executionId(payload)` digest, and 0.2.0 adopted it without a compatibility path: executions started on 0.1.x are no longer reachable by payload, and parent workflows recorded on 0.1.x fail replay with a nondeterminism error at their child starts. `legacyExecutionId(workflow, payload)` returns the old id for addressing those executions. `makeWorkflow({ legacyChildExecutionIds: true })` replays pre-marker child starts under the old id; leave it unset for histories recorded on 0.2.0 or 0.3.0, which already use the new id. Child starts now record the `effect-temporal/child-execution-ids-v2` patch marker, adding one marker event to runs that start a child.
+
+### Patch Changes
+
+- [#87](https://github.com/joepjoosten/effect-temporal/pull/87) [`e056a99`](https://github.com/joepjoosten/effect-temporal/commit/e056a99d4ad5ab2e81b0c82219866b3a1191a27b) Thanks [@joepjoosten](https://github.com/joepjoosten)! - Remove the redundant constructors from the tagged error classes; they inherit the identical constructor from `Data.TaggedError`. No behaviour change.
+- Updated dependencies [[`e056a99`](https://github.com/joepjoosten/effect-temporal/commit/e056a99d4ad5ab2e81b0c82219866b3a1191a27b)]:
+  - @effect-temporal/client@0.4.1
+
 ## 0.3.0
 
 ### Minor Changes
