@@ -7,8 +7,8 @@
     "declarationDir": "build/dts",
     "stripInternal": true,
     "paths": {
-      "@effect-temporal/client": ["./packages/client/build/dts/index.d.ts"],
-      "@effect-temporal/client/*": ["./packages/client/build/dts/*.d.ts"]
+      "@effect-temporal/client": ["../client/build/dts/index.d.ts"],
+      "@effect-temporal/client/*": ["../client/build/dts/*.d.ts"]
     }
   },
   "references": [
