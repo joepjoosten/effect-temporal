@@ -14,5 +14,9 @@
       "@effect-temporal/workflow": ["../workflow/build/dts/index.d.ts"],
       "@effect-temporal/workflow/*": ["../workflow/build/dts/*.d.ts"]
     }
-  }
+  },
+  "references": [
+    { "path": "../client/tsconfig.build.json" },
+    { "path": "../workflow/tsconfig.build.json" }
+  ]
 }

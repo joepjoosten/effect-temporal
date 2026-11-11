@@ -1,5 +1,11 @@
 packages:
   - packages/*
 
+allowBuilds:
+  '@swc/core': false
+  dprint: false
+  esbuild: false
+  protobufjs: false
+
 overrides:
   human-id: 4.1.0
