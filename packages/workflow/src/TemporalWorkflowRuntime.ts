@@ -45,6 +45,7 @@ import {
   completeDeferredSignalName,
   deferredResultQueryName,
   interruptSignalName,
+  legacyExecutionId,
   mailboxSignalName,
   resumeSignalName,
   scheduleClockSignalName,
@@ -160,6 +161,11 @@ export interface TemporalWorkflowRuntimeState {
    */
   readonly childResults: Map<string, Workflow.Result<unknown, unknown>>
   /**
+   * The execution id each child was first started under, keyed by its current
+   * execution id, so every pass of the body addresses the same child run.
+   */
+  readonly childExecutionIds: Map<string, string>
+  /**
    * Memoized typed-activity exits keyed by activity name and per-pass call
    * sequence; `typedActivitySeq` resets each pass so calls replay in order.
    */
@@ -215,6 +221,7 @@ export const makeRuntimeState = (
   updateRequests: new Map(),
   updateResults: new Map(),
   childResults: new Map(),
+  childExecutionIds: new Map(),
   typedActivityResults: new Map(),
   typedActivitySeq: new Map(),
   outboundCalls: new Map(),
@@ -407,6 +414,13 @@ export interface TemporalWorkflowRuntimeOptions<
   ) => Effect.Effect<Success, Error, R>
   /** Must match the client engine prefix when starting child workflows. */
   readonly workflowIdPrefix?: string | undefined
+  /**
+   * Replay child starts recorded before the child execution-id patch marker
+   * under the pre-`effect@4.0.0-rc.118` execution id. Enable when upgrading
+   * straight from `@effect-temporal/workflow` 0.1.x with parent workflows in
+   * flight; leave unset if those histories were recorded on 0.2.0 or later.
+   */
+  readonly legacyChildExecutionIds?: boolean | undefined
   readonly activityProxy?: TemporalActivityProxy | undefined
   readonly provide?: ((<A, E, R2>(effect: Effect.Effect<A, E, R2>) => Effect.Effect<A, E, never>)) | undefined
 }
@@ -466,8 +480,28 @@ const makeRuntimeEngine = (
     string,
     (input: TemporalActivityInvocation) => Promise<Workflow.ResultEncoded<unknown, unknown>>
   >,
-  workflowName: string
+  workflowName: string,
+  legacyChildExecutionIds: boolean
 ): WorkflowEngine.WorkflowEngine["Service"] => {
+  // Effect changed the execution-id digest in 4.0.0-rc.118. Runs recorded
+  // from here on carry a patch marker; a history without it used either the
+  // old digest (0.1.x) or the new one (0.2.0, 0.3.0), which the history alone
+  // cannot tell apart, so `legacyChildExecutionIds` picks the old one.
+  const childWorkflowId = (workflow: Workflow.Any, options: any): Effect.Effect<string> =>
+    Effect.suspend(() => {
+      const prefixed = patched("effect-temporal/child-workflow-ids-v1")
+      const current = patched("effect-temporal/child-execution-ids-v2")
+      const known = state.childExecutionIds.get(options.executionId)
+      const executionId = known !== undefined
+        ? Effect.succeed(known)
+        : current || !legacyChildExecutionIds
+        ? Effect.succeed(options.executionId as string)
+        : legacyExecutionId(workflow, options.payload)
+      return Effect.map(executionId, (executionId) => {
+        state.childExecutionIds.set(options.executionId, executionId)
+        return prefixed ? workflowIdFor(workflow._tag, executionId, state.workflowIdPrefix) : executionId
+      })
+    })
   const isLocal = (name: string, executionId: string): boolean =>
     (name === workflowName && executionId === state.executionId)
     || !patched("effect-temporal/target-workflow-routing-v1")
@@ -487,16 +521,17 @@ const makeRuntimeEngine = (
     register: () => unsupported("Workflow registration is not available inside a Temporal workflow runtime"),
     execute: (workflow: Workflow.Any, options: any) =>
       options.discard
-        ? Effect.tryPromise({
-          try: () =>
-            startChild(workflow._tag, {
-              workflowId: patched("effect-temporal/child-workflow-ids-v1")
-                ? workflowIdFor(workflow._tag, options.executionId, state.workflowIdPrefix)
-                : options.executionId,
-              args: [wireCodecsFor(workflow).encodePayload(options.payload)]
-            }),
-          catch: (cause) => cause
-        }).pipe(
+        ? childWorkflowId(workflow, options).pipe(
+          Effect.flatMap((workflowId) =>
+            Effect.tryPromise({
+              try: () =>
+                startChild(workflow._tag, {
+                  workflowId,
+                  args: [wireCodecsFor(workflow).encodePayload(options.payload)]
+                }),
+              catch: (cause) => cause
+            })
+          ),
           // A resumed pass re-issues the start; an already-running child is
           // not an error.
           Effect.catch((cause) => isWorkflowExecutionAlreadyStartedError(cause) ? Effect.void : Effect.die(cause)),
@@ -507,16 +542,17 @@ const makeRuntimeEngine = (
           if (cached !== undefined) {
             return Effect.succeed(cached)
           }
-          return Effect.tryPromise({
-            try: () =>
-              executeChild(workflow._tag, {
-                workflowId: patched("effect-temporal/child-workflow-ids-v1")
-                  ? workflowIdFor(workflow._tag, options.executionId, state.workflowIdPrefix)
-                  : options.executionId,
-                args: [wireCodecsFor(workflow).encodePayload(options.payload)]
-              }),
-            catch: (cause) => cause
-          }).pipe(
+          return childWorkflowId(workflow, options).pipe(
+            Effect.flatMap((workflowId) =>
+              Effect.tryPromise({
+                try: () =>
+                  executeChild(workflow._tag, {
+                    workflowId,
+                    args: [wireCodecsFor(workflow).encodePayload(options.payload)]
+                  }),
+                catch: (cause) => cause
+              })
+            ),
             Effect.match({
               onFailure: (cause) =>
                 decodeWorkflowFailure(workflow, cause)
@@ -687,7 +723,12 @@ export const makeWorkflow = <Payload, Success, Error, R>(
         const instance = WorkflowEngine.WorkflowInstance.initial(options.workflow, executionId)
         instance.interrupted = state.interrupted
         activeInstance = instance
-        const engine = makeRuntimeEngine(state, activityCaller, options.workflow._tag)
+        const engine = makeRuntimeEngine(
+          state,
+          activityCaller,
+          options.workflow._tag,
+          options.legacyChildExecutionIds === true
+        )
         const base = options.execute(decodedPayload, executionId).pipe(
           Effect.onExit(() => {
             if (!state.interrupted) {
