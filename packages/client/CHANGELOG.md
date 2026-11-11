@@ -1,5 +1,11 @@
 # @effect-temporal/client
 
+## 0.4.1
+
+### Patch Changes
+
+- [#87](https://github.com/joepjoosten/effect-temporal/pull/87) [`e056a99`](https://github.com/joepjoosten/effect-temporal/commit/e056a99d4ad5ab2e81b0c82219866b3a1191a27b) Thanks [@joepjoosten](https://github.com/joepjoosten)! - Remove the redundant constructors from the tagged error classes; they inherit the identical constructor from `Data.TaggedError`. No behaviour change.
+
 ## 0.4.0
 
 ### Minor Changes
