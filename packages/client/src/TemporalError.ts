@@ -12,11 +12,7 @@ import * as Stream from "effect/Stream"
 export class TemporalConnectionError extends Data.TaggedError("TemporalConnectionError")<{
   readonly message: string
   readonly cause: unknown
-}> {
-  constructor(props: { readonly message: string; readonly cause: unknown }) {
-    super(props)
-  }
-}
+}> {}
 
 /**
  * @since 1.0.0
@@ -26,11 +22,7 @@ export class TemporalClientError extends Data.TaggedError("TemporalClientError")
   readonly operation: string
   readonly message: string
   readonly cause: unknown
-}> {
-  constructor(props: { readonly operation: string; readonly message: string; readonly cause: unknown }) {
-    super(props)
-  }
-}
+}> {}
 
 /**
  * @since 1.0.0

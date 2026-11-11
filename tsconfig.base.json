@@ -32,7 +32,18 @@
     "module": "NodeNext",
     "incremental": true,
     "removeComments": false,
-    "plugins": [{ "name": "@effect/language-service" }],
+    "plugins": [{
+      "name": "@effect/language-service",
+      "namespaceImportPackages": ["effect", "@effect/*"],
+      "diagnosticSeverity": {
+        "globalErrorInEffectFailure": "off",
+        "unstableApiUsage": "off",
+        "experimentalApiUsage": "off"
+      },
+      "includeSuggestionsInTsc": false,
+      "ignoreEffectWarningsInTscExitCode": true,
+      "ignoreEffectErrorsInTscExitCode": false
+    }],
     "paths": {
       "@effect-temporal/client": ["./packages/client/src/index.js"],
       "@effect-temporal/client/*": ["./packages/client/src/*.js"],

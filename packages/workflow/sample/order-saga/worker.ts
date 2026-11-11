@@ -11,7 +11,7 @@ import { fileURLToPath } from "node:url"
 import * as TemporalNexusService from "../../src/TemporalNexusService.js"
 import * as TemporalTypedActivity from "../../src/TemporalTypedActivity.js"
 import * as TemporalWorker from "../../src/TemporalWorker.js"
-import { ChargeDeclined, chargeCard, getQuote, quoteWorkflow, refundCharge } from "./definitions.js"
+import { chargeCard, ChargeDeclined, getQuote, quoteWorkflow, refundCharge } from "./definitions.js"
 
 // Activity implementations are `(payload) => Effect`; use the `provide`
 // option of `implement` to give them application services via Layers.
@@ -20,8 +20,7 @@ const activities = TemporalTypedActivity.implement([
     payload.amountCents <= 0
       ? Effect.fail(new ChargeDeclined({ code: 51 }))
       : Effect.succeed({ receiptId: `receipt-${payload.orderId}` })),
-  TemporalTypedActivity.handle(refundCharge, (payload) =>
-    Effect.log(`refunding ${payload.receiptId}`))
+  TemporalTypedActivity.handle(refundCharge, (payload) => Effect.log(`refunding ${payload.receiptId}`))
 ])
 
 const workerLayer = Layer.provide(

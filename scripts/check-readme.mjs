@@ -1,8 +1,8 @@
+import { spawnSync } from "node:child_process"
 import * as Fs from "node:fs"
 import * as Path from "node:path"
 import process from "node:process"
 import { fileURLToPath, URL } from "node:url"
-import ts from "typescript"
 
 const root = fileURLToPath(new URL("../", import.meta.url))
 const readme = Fs.readFileSync(Path.join(root, "README.md"), "utf8")
@@ -15,28 +15,30 @@ if (snippets.length !== files.length) {
 
 const directory = Fs.mkdtempSync(Path.join(root, ".readme-check-"))
 try {
-  const roots = files.map((file, index) => {
+  files.forEach((file, index) => {
     const target = Path.join(directory, file)
     Fs.mkdirSync(Path.dirname(target), { recursive: true })
     Fs.writeFileSync(target, snippets[index][1])
-    return target
   })
-  const config = ts.readConfigFile(Path.join(root, "tsconfig.base.json"), ts.sys.readFile)
-  if (config.error) throw new Error(ts.flattenDiagnosticMessageText(config.error.messageText, "\n"))
-  const parsed = ts.parseJsonConfigFileContent(config.config, ts.sys, root, {
-    composite: false,
-    incremental: false,
-    noEmit: true,
-    types: ["node"]
+  Fs.writeFileSync(
+    Path.join(directory, "tsconfig.json"),
+    JSON.stringify({
+      extends: "../tsconfig.base.json",
+      include: files,
+      compilerOptions: {
+        composite: false,
+        incremental: false,
+        noEmit: true,
+        types: ["node"]
+      }
+    })
+  )
+  const result = spawnSync(Path.join(root, "node_modules/.bin/tsc"), ["-p", Path.join(directory, "tsconfig.json"), "--pretty"], {
+    cwd: root,
+    stdio: "inherit"
   })
-  const program = ts.createProgram(roots, parsed.options)
-  const diagnostics = [...parsed.errors, ...ts.getPreEmitDiagnostics(program)]
-  if (diagnostics.length > 0) {
-    process.stderr.write(ts.formatDiagnosticsWithColorAndContext(diagnostics, {
-      getCanonicalFileName: (file) => file,
-      getCurrentDirectory: () => root,
-      getNewLine: () => "\n"
-    }))
+  if (result.error) throw result.error
+  if (result.status !== 0) {
     process.exitCode = 1
   } else {
     process.stdout.write("README quick-start snippets typecheck successfully\n")
