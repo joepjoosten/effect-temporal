@@ -52,6 +52,22 @@ New children use the same `prefix/executionId` (or `workflowTag/executionId`)
 address as client interactions. Histories predating the child-ID patch marker
 retain their original unprefixed child IDs during replay.
 
+Effect changed how `workflow.executionId(payload)` is digested in
+`4.0.0-rc.118`, which this package adopted in 0.2.0, so the same payload maps
+to a different Temporal workflow ID than it did on 0.1.x:
+
+- To reach an execution started on 0.1.x (poll, interrupt, resume, signal,
+  state-cell reads), pass
+  `yield* TemporalWorkflowProtocol.legacyExecutionId(workflow, payload)` as
+  the `executionId`. Re-executing the payload starts a new run instead of
+  attaching to the old one.
+- A parent workflow recorded on 0.1.x fails replay with a nondeterminism error
+  at its child starts. Set `legacyChildExecutionIds: true` on its
+  `makeWorkflow` to replay those starts under the old ID. Do not set it for
+  parents recorded on 0.2.0 or 0.3.0: their histories look the same but
+  already use the new ID. Runs started from this release on record a patch
+  marker and ignore the option.
+
 Everything crossing a Temporal boundary is schema-encoded JSON, and typed
 failures round-trip: a workflow or activity failing with its schema'd error
 lands in the reading side's Effect error channel as a real class instance,

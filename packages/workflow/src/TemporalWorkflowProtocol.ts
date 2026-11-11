@@ -1,6 +1,8 @@
 /**
  * @since 1.0.0
  */
+import * as Effect from "effect/Effect"
+import type * as Workflow from "effect/workflow/Workflow"
 
 /**
  * @since 1.0.0
@@ -177,3 +179,33 @@ export const workflowIdFor = (
   executionId: string,
   workflowIdPrefix?: string | undefined
 ): string => `${workflowIdPrefix ?? workflowName}/${executionId}`
+
+/**
+ * The execution id `workflow.executionId(payload)` returned before
+ * `effect@4.0.0-rc.118`: the first 16 bytes of SHA-256 over
+ * `${tag}-${idempotencyKey}`, hex-encoded. Later Effect releases digest
+ * `${tag.length}:${tag}:${idempotencyKey}` instead, so a workflow started on
+ * `@effect-temporal/workflow` 0.1.x has this id in its Temporal workflow id.
+ * Pass it wherever an `executionId` is expected (poll, interrupt, resume,
+ * interactions) to reach an execution started before the upgrade.
+ *
+ * @since 1.0.0
+ * @category Helpers
+ */
+export const legacyExecutionId = <W extends Workflow.Any>(
+  workflow: W,
+  payload: Parameters<W["idempotencyKey"]>[0]
+): Effect.Effect<string> =>
+  Effect.promise(async () => {
+    const digest = new Uint8Array(
+      await crypto.subtle.digest(
+        "SHA-256",
+        new TextEncoder().encode(`${workflow._tag}-${workflow.idempotencyKey(payload)}`)
+      )
+    )
+    let hex = ""
+    for (let index = 0; index < 16; index++) {
+      hex += digest[index]!.toString(16).padStart(2, "0")
+    }
+    return hex
+  })
