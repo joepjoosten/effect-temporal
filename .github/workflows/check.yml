@@ -25,6 +25,7 @@ jobs:
       - run: pnpm codegen
       - name: Check source state
         run: git add packages/*/src && git diff-index --cached HEAD --exit-code -- packages/*/src
+      - run: pnpm build
 
   types:
     name: Types
