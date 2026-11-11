@@ -1,5 +1,6 @@
 import { METADATA_ENCODING_KEY, type Payload } from "@temporalio/common"
 import * as Effect from "effect/Effect"
+import * as Layer from "effect/Layer"
 import * as Redacted from "effect/Redacted"
 import { describe, expect, it } from "vitest"
 import * as TemporalDataConverter from "../src/TemporalDataConverter.js"
@@ -78,8 +79,12 @@ describe("TemporalDataConverter", () => {
       Effect.gen(function*() {
         return yield* TemporalDataConverter.TemporalDataConverter
       }).pipe(
-        Effect.provide(TemporalDataConverter.layerWithCodec()),
-        Effect.provide(TemporalDataConverter.keyProviderLayer(provider))
+        Effect.provide(
+          Layer.provide(
+            TemporalDataConverter.layerWithCodec(),
+            TemporalDataConverter.keyProviderLayer(provider)
+          )
+        )
       )
     )
 

@@ -6,6 +6,8 @@
  *
  * @since 1.0.0
  */
+// The polyfills are installed as a side effect of evaluating this module.
+// oxlint-disable-next-line import/no-unassigned-import
 import "./TemporalSandboxPolyfills.js"
 import * as Scheduler from "effect/Scheduler"
 

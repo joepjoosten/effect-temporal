@@ -59,11 +59,7 @@ export const METADATA_ENCRYPTED_DATA_KEY = "enc-data-key"
 export class TemporalCodecError extends Data.TaggedError("TemporalCodecError")<{
   readonly message: string
   readonly cause?: unknown
-}> {
-  constructor(props: { readonly message: string; readonly cause?: unknown }) {
-    super(props)
-  }
-}
+}> {}
 
 /**
  * @since 1.0.0
@@ -224,7 +220,7 @@ export const makePayloadCodec = (provider: TemporalCodecKeyProvider): PayloadCod
     const cryptoKey = await createCryptoKey(generated.key)
     const encryptedEncoding = await encrypt(encodedEncoding, cryptoKey)
     const metadata = {
-      ...(generated.metadata ?? {}),
+      ...generated.metadata,
       [METADATA_ENCODING_KEY]: encodedEncoding,
       [METADATA_ENCRYPTED_ENCODING_KEY]: encryptedEncoding
     }

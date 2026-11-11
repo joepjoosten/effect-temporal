@@ -7,10 +7,10 @@ retries, task queues, and the operational tooling around them.
 
 The monorepo publishes three packages:
 
-| Package                    | What it is                                                                                                                              |
-| -------------------------- | --------------------------------------------------------------------------------------------------------------------------------------- |
+| Package                     | What it is                                                                                                                               |
+| --------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------- |
 | `@effect-temporal/workflow` | The `WorkflowEngine` implementation: the client-side engine, the sandbox runtime, entity primitives, typed activities, versioning, Nexus |
-| `@effect-temporal/client`   | A general Effect wrapper over `@temporalio/client`: connections, workflow/schedule/activity/Nexus clients as services and layers          |
+| `@effect-temporal/client`   | A general Effect wrapper over `@temporalio/client`: connections, workflow/schedule/activity/Nexus clients as services and layers         |
 | `@effect-temporal/testing`  | Test-server environments, a one-call workflow test harness, and a recording stub client for serverless unit tests                        |
 
 ## Features
@@ -79,11 +79,11 @@ idempotency key becomes a stable Temporal workflow ID.
 
 ### Comparison with Effect's own engines
 
-| Engine                         | Backing runtime                                | Best for                                                  |
-| ------------------------------ | ---------------------------------------------- | --------------------------------------------------------- |
-| `WorkflowEngine.layerMemory`   | Current process memory                         | Tests, local development, single-process workflows        |
-| `ClusterWorkflowEngine.layer`  | Effect Cluster, sharding, and `MessageStorage` | Effect-native distributed durable workflows               |
-| `TemporalWorkflowEngine.layer` | Temporal server and Temporal workers           | Codebases that already run Temporal                       |
+| Engine                         | Backing runtime                                | Best for                                           |
+| ------------------------------ | ---------------------------------------------- | -------------------------------------------------- |
+| `WorkflowEngine.layerMemory`   | Current process memory                         | Tests, local development, single-process workflows |
+| `ClusterWorkflowEngine.layer`  | Effect Cluster, sharding, and `MessageStorage` | Effect-native distributed durable workflows        |
+| `TemporalWorkflowEngine.layer` | Temporal server and Temporal workers           | Codebases that already run Temporal                |
 
 Swapping engines means providing `TemporalWorkflowEngine.layer` on the client
 side and running a matching Temporal worker for the same task queue.
@@ -94,10 +94,10 @@ side and running a matching Temporal worker for the same task queue.
 
 ```ts
 // workflows/definitions.ts — keep this file sandbox-safe
-import * as Schema from "effect/Schema"
-import * as Workflow from "effect/workflow/Workflow"
-import * as DurableDeferred from "effect/workflow/DurableDeferred"
 import * as TemporalTypedActivity from "@effect-temporal/workflow/TemporalTypedActivity"
+import * as Schema from "effect/Schema"
+import * as DurableDeferred from "effect/workflow/DurableDeferred"
+import * as Workflow from "effect/workflow/Workflow"
 
 export class ChargeDeclined extends Schema.TaggedError<ChargeDeclined>()("ChargeDeclined", {
   code: Schema.Number
@@ -126,10 +126,10 @@ export const managerApproval = DurableDeferred.make("manager-approval", {
 
 ```ts
 // workflows/bundle.ts — the file passed to the worker as workflowsPath
-import * as Effect from "effect/Effect"
-import * as DurableDeferred from "effect/workflow/DurableDeferred"
 import * as TemporalTypedActivity from "@effect-temporal/workflow/TemporalTypedActivity"
 import * as TemporalWorkflowRuntime from "@effect-temporal/workflow/TemporalWorkflowRuntime"
+import * as Effect from "effect/Effect"
+import * as DurableDeferred from "effect/workflow/DurableDeferred"
 import { chargeCard, managerApproval, orderWorkflow } from "./definitions.js"
 
 export const OrderWorkflow = TemporalWorkflowRuntime.makeWorkflow({
@@ -283,7 +283,7 @@ const getQuote = TemporalNexusOperation.make("quote-service", "getQuote", {
 const worker = { nexusServices: [TemporalNexusService.workflowRunOperation(getQuote, quoteWorkflow)] }
 
 // Any workflow (cross-namespace): typed call, typed failure channel
-const quote = yield* TemporalNexusOperation.call(getQuote, { endpoint: "quotes" }, request)
+const quote = yield * TemporalNexusOperation.call(getQuote, { endpoint: "quotes" }, request)
 ```
 
 ## Testing
@@ -292,8 +292,8 @@ const quote = yield* TemporalNexusOperation.call(getQuote, { endpoint: "quotes" 
 
 ```ts
 // Integration: one scoped call boots the test server, a worker, and an engine
-const harness = yield* TemporalTesting.makeWorkflowTestHarness({ workflowsPath, activities })
-const result = yield* harness.provide(orderWorkflow.execute(payload))
+const harness = yield * TemporalTesting.makeWorkflowTestHarness({ workflowsPath, activities })
+const result = yield * harness.provide(orderWorkflow.execute(payload))
 
 // Unit: drive client-side code with zero servers; every interaction is recorded
 const stub = TemporalTesting.makeStubTemporalClient({ resultFor: () => "done" })

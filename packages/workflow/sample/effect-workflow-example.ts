@@ -164,6 +164,9 @@ export const checkoutWorkflowLayer = checkoutWorkflow.toLayer((payload, executio
       Effect.annotateLogs({ approverId: approval.approverId })
     )
 
+    // `Activity.raceAll` infers a `never` success for activities with different
+    // success schemas, although the race does complete at runtime.
+    // @effect-diagnostics-next-line missingReturnYieldStar:off
     yield* Activity.raceAll("notify-customer", [sendEmail, enqueueWebhook])
 
     yield* Workflow.provideScope(Effect.log("persist audit record in workflow scope"))

@@ -13,25 +13,25 @@ and doubles as a second usage reference.
 
 ## Modules
 
-| Module                          | Side          | What it does                                                                                                       |
-| ------------------------------- | ------------- | ------------------------------------------------------------------------------------------------------------------ |
-| `TemporalWorkflowEngine`        | client        | The Effect `WorkflowEngine` over Temporal: start (idempotent, `REJECT_DUPLICATE`), poll, interrupt, resume          |
-| `TemporalWorkflowRuntime`       | sandbox       | `makeWorkflow` / `makeActivities`; the run loop, protocol handlers, and the `TemporalSandboxRun` service            |
-| `TemporalWorkflowWire`          | shared        | Schema-derived JSON codecs for payloads, results, and deferred exits; the `EffectWorkflowExit` failure format       |
-| `TemporalWorkflowProtocol`      | shared        | Reserved `__effect_workflow_*` query/signal names and payload shapes                                                |
-| `TemporalSandbox` / `...Polyfills` | sandbox    | Microtask fiber scheduler and sandbox polyfills (SHA-256, `getRandomValues`, `TextEncoder`, pinned `performance`)   |
-| `TemporalTypedActivity`         | shared/worker | Activities with explicit payload/success/error schemas and per-activity options; `call` + `handle`/`implement`      |
-| `TemporalStateCell`             | shared        | Queryable published workflow state (`set` in the body; read via `TemporalWorkflowInteractions.readStateCell`)       |
-| `TemporalDurableMailbox`        | shared        | Typed inbound message channels: `take`/`poll` in the body, workflow-to-workflow `offer`                             |
-| `TemporalDurableUpdate`         | shared        | Typed request/response updates with a schema'd failure channel                                                      |
-| `TemporalContinueAsNew`         | sandbox       | Continue the workflow as a new run with a schema-encoded payload                                                    |
-| `TemporalVersioning`            | sandbox       | `patched`/`deprecatePatch` as Effects and the `match` version-chain combinator                                      |
-| `TemporalNexusOperation`        | shared        | Schema-typed Nexus operation definitions and the workflow-side `call`                                               |
-| `TemporalNexusService`          | worker        | `workflowRunOperation`: back a Nexus operation with an Effect workflow (`nexusServices` handler)                    |
-| `TemporalWorkflowInteractions`  | client        | Client-side entity interactions: `readStateCell`, `offerMailbox`, `executeUpdate`                                   |
-| `TemporalWorker`                | worker        | Effect service/Layer for the Temporal worker lifecycle                                                              |
-| `TemporalLint`                  | tooling       | ESLint plugin (flat config) enforcing workflow-sandbox safety, with a `recommended` preset                          |
-| `TemporalClient` / `TemporalConnection` | client | Re-exports from `@effect-temporal/client` for convenience                                                           |
+| Module                                  | Side          | What it does                                                                                                      |
+| --------------------------------------- | ------------- | ----------------------------------------------------------------------------------------------------------------- |
+| `TemporalWorkflowEngine`                | client        | The Effect `WorkflowEngine` over Temporal: start (idempotent, `REJECT_DUPLICATE`), poll, interrupt, resume        |
+| `TemporalWorkflowRuntime`               | sandbox       | `makeWorkflow` / `makeActivities`; the run loop, protocol handlers, and the `TemporalSandboxRun` service          |
+| `TemporalWorkflowWire`                  | shared        | Schema-derived JSON codecs for payloads, results, and deferred exits; the `EffectWorkflowExit` failure format     |
+| `TemporalWorkflowProtocol`              | shared        | Reserved `__effect_workflow_*` query/signal names and payload shapes                                              |
+| `TemporalSandbox` / `...Polyfills`      | sandbox       | Microtask fiber scheduler and sandbox polyfills (SHA-256, `getRandomValues`, `TextEncoder`, pinned `performance`) |
+| `TemporalTypedActivity`                 | shared/worker | Activities with explicit payload/success/error schemas and per-activity options; `call` + `handle`/`implement`    |
+| `TemporalStateCell`                     | shared        | Queryable published workflow state (`set` in the body; read via `TemporalWorkflowInteractions.readStateCell`)     |
+| `TemporalDurableMailbox`                | shared        | Typed inbound message channels: `take`/`poll` in the body, workflow-to-workflow `offer`                           |
+| `TemporalDurableUpdate`                 | shared        | Typed request/response updates with a schema'd failure channel                                                    |
+| `TemporalContinueAsNew`                 | sandbox       | Continue the workflow as a new run with a schema-encoded payload                                                  |
+| `TemporalVersioning`                    | sandbox       | `patched`/`deprecatePatch` as Effects and the `match` version-chain combinator                                    |
+| `TemporalNexusOperation`                | shared        | Schema-typed Nexus operation definitions and the workflow-side `call`                                             |
+| `TemporalNexusService`                  | worker        | `workflowRunOperation`: back a Nexus operation with an Effect workflow (`nexusServices` handler)                  |
+| `TemporalWorkflowInteractions`          | client        | Client-side entity interactions: `readStateCell`, `offerMailbox`, `executeUpdate`                                 |
+| `TemporalWorker`                        | worker        | Effect service/Layer for the Temporal worker lifecycle                                                            |
+| `TemporalLint`                          | tooling       | ESLint plugin (flat config) enforcing workflow-sandbox safety, with a `recommended` preset                        |
+| `TemporalClient` / `TemporalConnection` | client        | Re-exports from `@effect-temporal/client` for convenience                                                         |
 
 ## Authoring model
 

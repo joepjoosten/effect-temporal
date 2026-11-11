@@ -1,6 +1,11 @@
 {
-  "typescript.tsdk": "node_modules/typescript/lib",
-  "typescript.enablePromptUseWorkspaceTsdk": true,
-  "editor.defaultFormatter": "esbenp.prettier-vscode",
-  "editor.formatOnSave": true
+  "dprint.path": "node_modules/.bin/dprint",
+  "editor.formatOnSave": true,
+  "editor.defaultFormatter": "dprint.dprint",
+  "editor.codeActionsOnSave": {
+    "source.fixAll.oxc": "explicit"
+  },
+  "js/ts.tsdk.path": "./node_modules/typescript/bin",
+  "js/ts.tsdk.promptToUseWorkspaceVersion": true,
+  "js/ts.experimental.useTsgo": true
 }

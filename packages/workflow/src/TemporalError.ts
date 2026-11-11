@@ -20,11 +20,7 @@ export {
  */
 export class TemporalWorkflowEngineError extends Data.TaggedError("TemporalWorkflowEngineError")<{
   readonly message: string
-}> {
-  constructor(props: { readonly message: string }) {
-    super(props)
-  }
-}
+}> {}
 
 /**
  * @since 1.0.0
@@ -33,8 +29,4 @@ export class TemporalWorkflowEngineError extends Data.TaggedError("TemporalWorkf
 export class TemporalWorkerError extends Data.TaggedError("TemporalWorkerError")<{
   readonly message: string
   readonly cause: unknown
-}> {
-  constructor(props: { readonly message: string; readonly cause: unknown }) {
-    super(props)
-  }
-}
+}> {}
